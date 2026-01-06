@@ -24,7 +24,7 @@ export interface Team {
   final_score: number;
 }
 
-export type QuestionCategory = "GENERAL" | "ENGINEER";
+export type QuestionCategory = "GENERAL" | "LOGIC";
 
 export interface Question {
   id: string;
@@ -47,6 +47,11 @@ export interface GameState {
   p1_buzzer_locked_by: string | null;
   p1_pot_score: number;
   p3_active_team_id: string | null;
+  p1_settings?: {
+    general_count: number;
+    logic_count: number;
+    shuffle_questions: boolean;
+  };
 }
 
 export type AssessmentPhase = "PHASE_2" | "PHASE_3";

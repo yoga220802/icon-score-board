@@ -9,6 +9,7 @@ Platform kompetisi real-time untuk Smart Society Innovation Challenge. Sistem in
 - **Phase 3 (Defense):** spotlight tim aktif dan penilaian juri.
 - **Realtime:** sinkronisasi <500ms via Firestore onSnapshot.
 - **Auth & RBAC:** admin dan juri dibatasi lewat Firebase Auth + Firestore rules.
+- **Manajemen Soal:** admin dapat menambahkan soal Phase 1 untuk kategori Pengetahuan Umum & Kemampuan Logika, sekaligus mengatur jumlah soal per kategori dan opsi acak.
 
 ## Tech Stack
 
@@ -16,12 +17,68 @@ Platform kompetisi real-time untuk Smart Society Innovation Challenge. Sistem in
 - Firebase Auth + Firestore
 - Firebase Admin SDK (API routes)
 
-## Setup Firebase
+## Panduan Lengkap Setup Firebase (Free Plan)
 
-1. Buat project Firebase dan aktifkan **Authentication (Email/Password)**.
-2. Buat Firestore database (mode production).
-3. Tambahkan web app di Firebase Console untuk mendapatkan client config.
-4. Buat service account untuk server-side access.
+Panduan ini menggunakan Firebase Spark (gratis). Cocok untuk development.
+
+### 1. Buat Project Firebase
+
+1. Buka https://console.firebase.google.com
+2. Klik **Add project**.
+3. Ikuti wizard hingga selesai.
+4. Setelah project dibuat, pastikan berada di project tersebut (cek nama di kiri atas).
+
+### 2. Aktifkan Firestore Database
+
+1. Dari sidebar, pilih **Firestore Database**.
+2. Klik **Create database**.
+3. Pilih **Production mode**.
+4. Pilih region terdekat (contoh: asia-southeast1).
+5. Klik **Enable**.
+
+### 3. Aktifkan Authentication (Email/Password)
+
+1. Dari sidebar, pilih **Authentication**.
+2. Klik **Get started**.
+3. Pilih **Email/Password**.
+4. Aktifkan (Enable) dan simpan.
+
+### 4. Buat Web App untuk Client Config
+
+1. Klik ikon **</>** (Web) di halaman Project Overview.
+2. Beri nama app (contoh: `icon-score-board`).
+3. Copy konfigurasi `firebaseConfig` yang muncul.
+4. Isi ke `.env.local` nanti.
+
+### 5. Buat Service Account untuk Server-side API
+
+1. Dari sidebar, klik **Project settings** (ikon gear).
+2. Buka tab **Service accounts**.
+3. Klik **Generate new private key**.
+4. Download file JSON.
+5. Simpan dan gunakan isi JSON ini untuk `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON`.
+
+> **Tips:** simpan file JSON di tempat aman dan jangan commit ke git.
+
+### 6. Deploy Firestore Rules
+
+Rules sudah tersedia di `firestore.rules`.
+
+Install Firebase CLI jika belum:
+
+```bash
+npm install -g firebase-tools
+firebase login
+```
+
+Lalu di root project:
+
+```bash
+firebase init firestore
+firebase deploy --only firestore:rules
+```
+
+Saat `firebase init firestore`, pilih project yang sama dan arahkan rules file ke `firestore.rules`.
 
 ## Environment Variables
 
@@ -35,31 +92,69 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
 NEXT_PUBLIC_FIREBASE_APP_ID=
 
+# Opsional: gunakan JSON service account
 FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON=
-# atau gunakan field terpisah
+
+# Alternatif: gunakan field terpisah
 FIREBASE_ADMIN_PROJECT_ID=
 FIREBASE_ADMIN_CLIENT_EMAIL=
 FIREBASE_ADMIN_PRIVATE_KEY=
 ```
 
-> `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON` berisi JSON service account dalam satu baris.
+> `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON` berisi JSON service account dalam satu baris (escape newline dengan `\n`).
 
-## Seed Data
+## Menjalankan Project (Development)
 
-Jalankan seed script untuk membuat 5 tim default, game_state, dan 10 sample soal:
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Jalankan seed data untuk membuat 5 tim, 10 soal sample, dan game_state:
 
 ```bash
 npm run seed
 ```
 
-## Menjalankan Lokal
+3. Jalankan aplikasi:
 
 ```bash
-npm install
 npm run dev
 ```
 
-Akses:
+4. Buka browser di `http://localhost:3000`.
+
+## Setup User Admin & Juri (Firebase Auth + Firestore)
+
+### 1. Buat User di Firebase Authentication
+
+1. Buka **Authentication** > **Users**.
+2. Klik **Add user**.
+3. Buat akun:
+   - `admin@icon.com` (Super Admin)
+   - `juri1@icon.com`, `juri2@icon.com`, dst (Juri)
+
+### 2. Isi Role di Collection `users`
+
+Buat dokumen di Firestore collection `users` dengan ID sesuai `uid` user Firebase Auth.
+
+Contoh struktur:
+
+```json
+{
+  "uid": "<uid>",
+  "email": "admin@icon.com",
+  "role": "admin",
+  "name": "Super Admin"
+}
+```
+
+Untuk juri, gunakan `role: "judge"`.
+
+> **Catatan:** RBAC di app menggunakan collection `users`. Jika role belum diisi, user tidak bisa masuk halaman admin/judge.
+
+## Akses Aplikasi
 
 - `http://localhost:3000/login` — Login admin/juri
 - `http://localhost:3000/admin` — Panel Admin (Super Admin)
@@ -71,12 +166,14 @@ Akses:
 
 ### Admin Flow
 
-1. Login dengan akun `admin@icon.com` (setelah user dibuat di Firebase Auth + `users/{uid}` dengan role `admin`).
-2. Pilih soal Phase 1, start timer, buka buzzer.
-3. Gunakan tombol BENAR/SALAH/HANGUS untuk scoring pot secara atomik.
-4. Lakukan gacha topik Phase 2 dan start/stop AI timer per tim.
-5. Set tim aktif Phase 3 untuk spotlight di public display.
-6. Klik **Recalculate Aggregation** untuk menghitung nilai akhir dari penilaian juri.
+1. Login dengan akun `admin@icon.com`.
+2. Tambah soal Phase 1 (Pengetahuan Umum / Kemampuan Logika).
+3. Atur jumlah soal per kategori dan opsi acak.
+4. Pilih soal, start timer, buka buzzer.
+5. Gunakan tombol **BENAR/SALAH/HANGUS** untuk scoring pot secara atomik.
+6. Lakukan gacha topik Phase 2 dan start/stop AI timer per tim.
+7. Set tim aktif Phase 3 untuk spotlight di public display.
+8. Klik **Recalculate Aggregation** untuk menghitung nilai akhir dari penilaian juri.
 
 ### Judge Flow
 
@@ -87,11 +184,7 @@ Akses:
 
 ## Firestore Rules
 
-File rules tersedia di `firestore.rules`. Pastikan di-deploy:
-
-```bash
-firebase deploy --only firestore:rules
-```
+File rules tersedia di `firestore.rules` dan harus di-deploy ke project Firebase.
 
 ## Testing
 
@@ -103,4 +196,4 @@ npm run test
 
 - Deploy ke Vercel.
 - Pastikan env variables terpasang.
-- Deploy Firestore rules dan (opsional) indexes.
+- Deploy Firestore rules.

@@ -1,7 +1,13 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { collection, onSnapshot, orderBy, query } from "firebase/firestore";
+import {
+  addDoc,
+  collection,
+  onSnapshot,
+  orderBy,
+  query,
+} from "firebase/firestore";
 import { db } from "@/lib/firebase";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useGameState } from "@/lib/hooks/useGameState";
@@ -10,7 +16,7 @@ import { useActiveQuestion } from "@/lib/hooks/useActiveQuestion";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { callAdminApi } from "@/lib/api";
-import type { Question, Team } from "@/lib/types";
+import type { GameState, Question, QuestionCategory, Team } from "@/lib/types";
 
 const BUZZER_KEYS: Record<string, string> = {
   a: "inf",
@@ -37,6 +43,18 @@ export default function AdminPage() {
   const [duration, setDuration] = useState(60);
   const [now, setNow] = useState(Date.now());
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [newQuestion, setNewQuestion] = useState({
+    number: 1,
+    category: "GENERAL" as QuestionCategory,
+    text: "",
+    image_url: "",
+    answer_key: "",
+  });
+  const [settings, setSettings] = useState({
+    general_count: 5,
+    logic_count: 5,
+    shuffle_questions: false,
+  });
 
   useEffect(() => {
     const q = query(collection(db, "questions_phase1"), orderBy("number", "asc"));
@@ -45,6 +63,16 @@ export default function AdminPage() {
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (gameState?.p1_settings) {
+      setSettings({
+        general_count: gameState.p1_settings.general_count ?? 0,
+        logic_count: gameState.p1_settings.logic_count ?? 0,
+        shuffle_questions: gameState.p1_settings.shuffle_questions ?? false,
+      });
+    }
+  }, [gameState?.p1_settings]);
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -69,7 +97,7 @@ export default function AdminPage() {
     window.setTimeout(() => setStatusMessage(null), 2000);
   };
 
-  const setGameState = async (updates: Partial<import("@/lib/types").GameState>, timerEndMs?: number | null) => {
+  const setGameState = async (updates: Partial<GameState>, timerEndMs?: number | null) => {
     await callAdminApi("/api/admin/game-state", { updates, timerEndMs });
   };
 
@@ -86,6 +114,36 @@ export default function AdminPage() {
     const startMs = team.ai_timer_last_started.toDate().getTime();
     const elapsed = Math.floor((now - startMs) / 1000);
     return Math.max(0, team.ai_timer_remaining - elapsed);
+  };
+
+  const handleAddQuestion = async () => {
+    if (!newQuestion.text.trim() || !newQuestion.answer_key.trim()) {
+      handleStatus("Lengkapi teks soal dan jawaban.");
+      return;
+    }
+
+    await addDoc(collection(db, "questions_phase1"), {
+      number: newQuestion.number,
+      category: newQuestion.category,
+      text: newQuestion.text.trim(),
+      image_url: newQuestion.image_url?.trim() || null,
+      answer_key: newQuestion.answer_key.trim(),
+      is_active: false,
+    });
+
+    setNewQuestion((prev) => ({ ...prev, text: "", image_url: "", answer_key: "" }));
+    handleStatus("Soal baru ditambahkan.");
+  };
+
+  const handleSaveSettings = async () => {
+    await setGameState({
+      p1_settings: {
+        general_count: settings.general_count,
+        logic_count: settings.logic_count,
+        shuffle_questions: settings.shuffle_questions,
+      },
+    });
+    handleStatus("Pengaturan soal disimpan.");
   };
 
   return (
@@ -220,7 +278,8 @@ export default function AdminPage() {
                         }}>
                         <div className="flex items-center justify-between">
                           <span>
-                            #{question.number} • {question.category}
+                            #{question.number} •{" "}
+                            {question.category === "GENERAL" ? "Pengetahuan Umum" : "Kemampuan Logika"}
                           </span>
                           {question.is_active && (
                             <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-200">
@@ -233,6 +292,138 @@ export default function AdminPage() {
                         </p>
                       </button>
                     ))}
+                  </div>
+                </div>
+
+                <div className="mt-8 grid gap-4 md:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                    <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
+                      Pengaturan Soal Phase 1
+                    </p>
+                    <div className="mt-3 grid gap-3 text-sm">
+                      <label className="flex flex-col gap-2">
+                        Jumlah Pengetahuan Umum
+                        <input
+                          className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                          type="number"
+                          min={0}
+                          value={settings.general_count}
+                          onChange={(event) =>
+                            setSettings((prev) => ({
+                              ...prev,
+                              general_count: Number(event.target.value),
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        Jumlah Kemampuan Logika
+                        <input
+                          className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                          type="number"
+                          min={0}
+                          value={settings.logic_count}
+                          onChange={(event) =>
+                            setSettings((prev) => ({
+                              ...prev,
+                              logic_count: Number(event.target.value),
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={settings.shuffle_questions}
+                          onChange={(event) =>
+                            setSettings((prev) => ({
+                              ...prev,
+                              shuffle_questions: event.target.checked,
+                            }))
+                          }
+                        />
+                        Acak urutan soal saat tampil
+                      </label>
+                      <button
+                        className="rounded-full bg-cyan-500 px-4 py-2 text-xs font-semibold text-slate-900"
+                        onClick={handleSaveSettings}>
+                        Simpan Pengaturan
+                      </button>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                    <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
+                      Tambah Soal Phase 1
+                    </p>
+                    <div className="mt-3 grid gap-3 text-sm">
+                      <label className="flex flex-col gap-2">
+                        Nomor Soal
+                        <input
+                          className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                          type="number"
+                          min={1}
+                          value={newQuestion.number}
+                          onChange={(event) =>
+                            setNewQuestion((prev) => ({
+                              ...prev,
+                              number: Number(event.target.value),
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        Kategori
+                        <select
+                          className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                          value={newQuestion.category}
+                          onChange={(event) =>
+                            setNewQuestion((prev) => ({
+                              ...prev,
+                              category: event.target.value as QuestionCategory,
+                            }))
+                          }>
+                          <option value="GENERAL">Pengetahuan Umum</option>
+                          <option value="LOGIC">Kemampuan Logika</option>
+                        </select>
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        Teks Soal
+                        <textarea
+                          className="min-h-[80px] rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                          value={newQuestion.text}
+                          onChange={(event) =>
+                            setNewQuestion((prev) => ({ ...prev, text: event.target.value }))
+                          }
+                        />
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        URL Gambar (opsional)
+                        <input
+                          className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                          type="text"
+                          value={newQuestion.image_url}
+                          onChange={(event) =>
+                            setNewQuestion((prev) => ({ ...prev, image_url: event.target.value }))
+                          }
+                        />
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        Jawaban
+                        <input
+                          className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                          type="text"
+                          value={newQuestion.answer_key}
+                          onChange={(event) =>
+                            setNewQuestion((prev) => ({ ...prev, answer_key: event.target.value }))
+                          }
+                        />
+                      </label>
+                      <button
+                        className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-900"
+                        onClick={handleAddQuestion}>
+                        Simpan Soal
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>

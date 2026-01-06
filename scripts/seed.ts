@@ -41,7 +41,7 @@ const teams = [
 const questions = Array.from({ length: 10 }).map((_, index) => ({
   id: `q${index + 1}`,
   number: index + 1,
-  category: index % 2 === 0 ? "GENERAL" : "ENGINEER",
+  category: index % 2 === 0 ? "GENERAL" : "LOGIC",
   text: `Contoh pertanyaan nomor ${index + 1}.`,
   answer_key: `Jawaban ${index + 1}`,
   is_active: false,
@@ -79,6 +79,11 @@ const seed = async () => {
     p1_buzzer_locked_by: null,
     p1_pot_score: 0,
     p3_active_team_id: null,
+    p1_settings: {
+      general_count: 5,
+      logic_count: 5,
+      shuffle_questions: false,
+    },
   });
 
   await batch.commit();
