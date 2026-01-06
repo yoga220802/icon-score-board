@@ -1,23 +1,13 @@
 @import "tailwindcss";
 
-/* Konfigurasi Zero-Config Tailwind v4 untuk HeroUI.
-  Kita memberitahu Tailwind untuk men-scan file HeroUI di node_modules 
-*/
 @source "../node_modules/@heroui/theme/dist/**/*.{js,ts,jsx,tsx}";
 
-/* Custom Theme Setup 
-  Kamu bisa override warna default HeroUI disini jika mau
-*/
 @theme {
-  --color-primary: #006FEE;
-  --color-secondary: #9353d3;
   --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui;
 }
 
-/* Default styles */
 body {
-  background-color: #000;
-  /* Background hitam agar warna tim pop-up */
-  color: #fff;
   min-height: 100vh;
+  background-color: #0b0c10;
+  color: #f9fafb;
 }

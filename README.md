@@ -1,36 +1,106 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# ICON Score Board System
 
-## Getting Started
+Platform kompetisi real-time untuk Smart Society Innovation Challenge. Sistem ini mencakup kontrol admin, dashboard juri, tampilan publik, dan tampilan peserta.
 
-First, run the development server:
+## Fitur Utama
+
+- **Phase 1 (Cerdas Cermat):** kontrol soal, buzzer, timer, pot scoring, dan transaksi atomik.
+- **Phase 2 (Innovation Lab):** gacha topik dan AI timer per tim.
+- **Phase 3 (Defense):** spotlight tim aktif dan penilaian juri.
+- **Realtime:** sinkronisasi <500ms via Firestore onSnapshot.
+- **Auth & RBAC:** admin dan juri dibatasi lewat Firebase Auth + Firestore rules.
+
+## Tech Stack
+
+- Next.js App Router + TypeScript + Tailwind CSS
+- Firebase Auth + Firestore
+- Firebase Admin SDK (API routes)
+
+## Setup Firebase
+
+1. Buat project Firebase dan aktifkan **Authentication (Email/Password)**.
+2. Buat Firestore database (mode production).
+3. Tambahkan web app di Firebase Console untuk mendapatkan client config.
+4. Buat service account untuk server-side access.
+
+## Environment Variables
+
+Salin `.env.example` ke `.env.local` lalu isi:
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+NEXT_PUBLIC_FIREBASE_API_KEY=
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=
+NEXT_PUBLIC_FIREBASE_APP_ID=
+
+FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON=
+# atau gunakan field terpisah
+FIREBASE_ADMIN_PROJECT_ID=
+FIREBASE_ADMIN_CLIENT_EMAIL=
+FIREBASE_ADMIN_PRIVATE_KEY=
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+> `FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON` berisi JSON service account dalam satu baris.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Seed Data
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Jalankan seed script untuk membuat 5 tim default, game_state, dan 10 sample soal:
 
-## Learn More
+```bash
+npm run seed
+```
 
-To learn more about Next.js, take a look at the following resources:
+## Menjalankan Lokal
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```bash
+npm install
+npm run dev
+```
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Akses:
 
-## Deploy on Vercel
+- `http://localhost:3000/login` — Login admin/juri
+- `http://localhost:3000/admin` — Panel Admin (Super Admin)
+- `http://localhost:3000/judge` — Dashboard Juri
+- `http://localhost:3000/display/public` — Tampilan publik
+- `http://localhost:3000/display/participant/[teamId]` — Tampilan peserta per tim
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## Alur Penggunaan
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Admin Flow
+
+1. Login dengan akun `admin@icon.com` (setelah user dibuat di Firebase Auth + `users/{uid}` dengan role `admin`).
+2. Pilih soal Phase 1, start timer, buka buzzer.
+3. Gunakan tombol BENAR/SALAH/HANGUS untuk scoring pot secara atomik.
+4. Lakukan gacha topik Phase 2 dan start/stop AI timer per tim.
+5. Set tim aktif Phase 3 untuk spotlight di public display.
+6. Klik **Recalculate Aggregation** untuk menghitung nilai akhir dari penilaian juri.
+
+### Judge Flow
+
+1. Login dengan akun juri (`role: judge`).
+2. Pilih tim dan phase (Phase 2/Phase 3).
+3. Isi skor kriteria, total otomatis dihitung.
+4. Klik **Submit & Lock** (tidak bisa diubah setelah submit).
+
+## Firestore Rules
+
+File rules tersedia di `firestore.rules`. Pastikan di-deploy:
+
+```bash
+firebase deploy --only firestore:rules
+```
+
+## Testing
+
+```bash
+npm run test
+```
+
+## Deployment (Opsional)
+
+- Deploy ke Vercel.
+- Pastikan env variables terpasang.
+- Deploy Firestore rules dan (opsional) indexes.
