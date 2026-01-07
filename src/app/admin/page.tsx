@@ -8,7 +8,7 @@ import {
   orderBy,
   query,
 } from "firebase/firestore";
-import { addToast } from "@heroui/react";
+import { addToast } from "@heroui/toast";
 import { db } from "@/lib/firebase";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useGameState } from "@/lib/hooks/useGameState";

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { setDoc, doc } from "firebase/firestore";
-import { addToast } from "@heroui/react";
+import { addToast } from "@heroui/toast";
 import { db, auth } from "@/lib/firebase";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useAuth } from "@/lib/hooks/useAuth";
