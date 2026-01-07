@@ -14,6 +14,7 @@ export interface Team {
   name: string;
   prodi: string;
   color: string;
+  logo_url?: string | null;
   score_phase1: number;
   topic_phase2: string;
   ai_timer_remaining: number;
@@ -32,6 +33,7 @@ export interface Question {
   category: QuestionCategory;
   text: string;
   image_url?: string;
+  options?: string[];
   answer_key: string;
   is_active: boolean;
 }
@@ -43,6 +45,7 @@ export interface GameState {
   p1_question_id: string | null;
   p1_show_answer: boolean;
   p1_timer_end: Timestamp | null;
+  p1_answer_deadline?: Timestamp | null;
   p1_buzzer_open: boolean;
   p1_buzzer_locked_by: string | null;
   p1_pot_score: number;

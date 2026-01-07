@@ -52,7 +52,7 @@ export const applyPotAction = (state: PotState, action: PotAction): PotState => 
         ...state,
         teamScore: state.teamScore - 5,
         potScore: state.potScore + 5,
-        buzzerOpen: true,
+        buzzerOpen: false,
         lockedBy: null,
       };
     case "HANGUS":

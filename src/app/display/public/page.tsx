@@ -34,6 +34,7 @@ export default function PublicDisplayPage() {
   const podiumHeights = [150, 210, 280, 210, 150];
 
   const activeTeamName = leaderboard.find((team) => team.id === gameState?.p3_active_team_id)?.name;
+  const answeringTeam = leaderboard.find((team) => team.id === gameState?.p1_buzzer_locked_by);
   const maxScore = Math.max(
     0,
     ...topTeams.map((team) =>
@@ -42,7 +43,13 @@ export default function PublicDisplayPage() {
   );
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black px-8 py-10 text-white">
+    <main
+      className="min-h-screen px-8 py-10 text-white transition-colors duration-500"
+      style={
+        answeringTeam?.color
+          ? { background: `linear-gradient(135deg, ${answeringTeam.color}55, #020617 70%)` }
+          : { background: "linear-gradient(135deg, #020617, #0f172a 60%, #000000)" }
+      }>
       <div className="mx-auto max-w-6xl space-y-10">
         <header className="flex flex-col gap-3">
           <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">Public Display</p>
@@ -60,6 +67,28 @@ export default function PublicDisplayPage() {
         </header>
 
         <section className="space-y-6">
+          <div className="flex flex-wrap items-center justify-center gap-4">
+            {topTeams.map((team) => (
+              <div key={`logo-${team.id}`} className="flex flex-col items-center gap-2">
+                {team.logo_url ? (
+                  <img
+                    src={team.logo_url}
+                    alt={`Logo ${team.prodi}`}
+                    className="h-12 w-12 rounded-full border border-white/20 object-contain bg-white/90 p-1"
+                  />
+                ) : (
+                  <div
+                    className="flex h-12 w-12 items-center justify-center rounded-full border border-white/20 text-xs font-semibold uppercase text-white"
+                    style={{ backgroundColor: team.color }}>
+                    {team.prodi?.slice(0, 3) || team.name.slice(0, 3)}
+                  </div>
+                )}
+                <span className="text-[10px] uppercase tracking-[0.2em] text-slate-300">
+                  {team.prodi}
+                </span>
+              </div>
+            ))}
+          </div>
           <div className="flex items-end justify-center gap-4">
             {podiumOrder.map((leaderboardIndex, slotIndex) => {
               const team = topTeams[leaderboardIndex];
