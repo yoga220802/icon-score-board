@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import { useGameState } from "@/lib/hooks/useGameState";
@@ -12,6 +12,10 @@ export default function ParticipantDisplayPage() {
   const { gameState } = useGameState();
   const { teams } = useTeams("name");
   const activeQuestion = useActiveQuestion(gameState?.p1_question_id);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [selectedAnswer, setSelectedAnswer] = useState<string>("");
+  const [now, setNow] = useState(Date.now());
+  const timeoutTriggered = useRef(false);
 
   const team = useMemo(
     () => teams.find((item) => item.id === params.teamId),
@@ -19,6 +23,73 @@ export default function ParticipantDisplayPage() {
   );
 
   const isLocked = gameState?.p1_buzzer_locked_by === params.teamId;
+  const answerDeadline = gameState?.p1_answer_deadline?.toDate().getTime() ?? null;
+  const remainingSeconds = answerDeadline ? Math.max(0, Math.ceil((answerDeadline - now) / 1000)) : null;
+
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!isLocked) {
+      timeoutTriggered.current = false;
+      return;
+    }
+    if (!answerDeadline || remainingSeconds === null || remainingSeconds > 0) {
+      return;
+    }
+    if (timeoutTriggered.current) {
+      return;
+    }
+    timeoutTriggered.current = true;
+    fetch("/api/participant/phase1/timeout", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ teamId: params.teamId }),
+    }).catch(() => undefined);
+  }, [answerDeadline, isLocked, params.teamId, remainingSeconds]);
+
+  const handleLock = async () => {
+    setStatusMessage(null);
+    try {
+      const response = await fetch("/api/participant/phase1/lock", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId: params.teamId }),
+      });
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+      setStatusMessage("Buzzer terkunci. Pilih jawaban!");
+    } catch (error) {
+      setStatusMessage((error as Error).message || "Gagal mengunci buzzer.");
+    }
+  };
+
+  const handleSubmitAnswer = async () => {
+    if (!selectedAnswer) {
+      setStatusMessage("Pilih jawaban terlebih dahulu.");
+      return;
+    }
+
+    setStatusMessage(null);
+    try {
+      const response = await fetch("/api/participant/phase1/answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ teamId: params.teamId, answer: selectedAnswer }),
+      });
+      if (!response.ok) {
+        throw new Error(await response.text());
+      }
+      const result = (await response.json()) as { correct?: boolean };
+      setStatusMessage(result.correct ? "Jawaban benar! ✅" : "Jawaban salah.");
+      setSelectedAnswer("");
+    } catch (error) {
+      setStatusMessage((error as Error).message || "Gagal mengirim jawaban.");
+    }
+  };
 
   return (
     <main
@@ -62,10 +133,51 @@ export default function ParticipantDisplayPage() {
           </div>
           {isLocked && (
             <p className="mt-2 text-xs text-emerald-100">
-              Tim Anda berhasil mengunci buzzer. Tunggu instruksi admin.
+              Tim Anda berhasil mengunci buzzer. Pilih jawaban dalam 30 detik.
             </p>
           )}
+          {!isLocked && gameState?.p1_buzzer_open && activeQuestion?.text && (
+            <button
+              className="mt-4 rounded-full bg-cyan-400 px-4 py-2 text-xs font-semibold text-slate-900"
+              onClick={handleLock}>
+              Jawab
+            </button>
+          )}
+          {statusMessage && <p className="mt-3 text-xs text-white/80">{statusMessage}</p>}
         </section>
+
+        {isLocked && activeQuestion?.options?.length ? (
+          <section className="rounded-3xl border border-white/20 bg-black/30 p-6">
+            <div className="flex items-center justify-between">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Pilih Jawaban</p>
+              {remainingSeconds !== null && (
+                <span className="text-sm font-semibold text-amber-200">
+                  {remainingSeconds}s
+                </span>
+              )}
+            </div>
+            <div className="mt-4 grid gap-2">
+              {activeQuestion.options.map((option) => (
+                <button
+                  key={option}
+                  className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                    selectedAnswer === option
+                      ? "border-emerald-300 bg-emerald-500/20 text-white"
+                      : "border-white/20 text-slate-100 hover:border-white/50"
+                  }`}
+                  onClick={() => setSelectedAnswer(option)}>
+                  {option}
+                </button>
+              ))}
+            </div>
+            <button
+              className="mt-4 rounded-full bg-emerald-300 px-4 py-2 text-xs font-semibold text-slate-900"
+              onClick={handleSubmitAnswer}
+              disabled={remainingSeconds === 0}>
+              Kirim Jawaban
+            </button>
+          </section>
+        ) : null}
       </div>
     </main>
   );

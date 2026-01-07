@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
-import { adminDb } from "@/lib/firebaseAdmin";
-import { requireAdmin } from "@/lib/serverAuth";
 import { Timestamp } from "firebase-admin/firestore";
+import { adminDb } from "@/lib/firebaseAdmin";
 import type { GameState } from "@/lib/types";
 
 export async function POST(request: Request) {
   try {
-    await requireAdmin();
     const { teamId } = (await request.json()) as { teamId: string };
+
+    if (!teamId) {
+      throw new Error("Team tidak ditemukan.");
+    }
 
     const result = await adminDb.runTransaction(async (transaction) => {
       const stateRef = adminDb.collection("game_state").doc("main");
@@ -20,7 +22,7 @@ export async function POST(request: Request) {
       const state = stateSnap.data() as GameState;
 
       if (!state.p1_buzzer_open || state.p1_buzzer_locked_by) {
-        return { locked: false };
+        throw new Error("Buzzer belum tersedia.");
       }
 
       transaction.update(stateRef, {

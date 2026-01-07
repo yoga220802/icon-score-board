@@ -59,7 +59,7 @@ describe("applyPotAction", () => {
     expect(applyPotAction(state, "SALAH")).toEqual({
       teamScore: 45,
       potScore: 15,
-      buzzerOpen: true,
+      buzzerOpen: false,
       lockedBy: null,
     });
   });

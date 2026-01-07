@@ -49,7 +49,8 @@ export default function AdminPage() {
     category: "GENERAL" as QuestionCategory,
     text: "",
     image_url: "",
-    answer_key: "",
+    options: ["", ""],
+    correctOptionIndex: 0,
   });
   const [settings, setSettings] = useState({
     general_count: 5,
@@ -127,8 +128,16 @@ export default function AdminPage() {
   };
 
   const handleAddQuestion = async () => {
-    if (!newQuestion.text.trim() || !newQuestion.answer_key.trim()) {
-      handleStatus("Lengkapi teks soal dan jawaban.", "warning");
+    const options = newQuestion.options.map((option) => option.trim()).filter(Boolean);
+    const answerKey = options[newQuestion.correctOptionIndex]?.trim() ?? "";
+
+    if (!newQuestion.text.trim() || !answerKey) {
+      handleStatus("Lengkapi teks soal dan pilih jawaban.", "warning");
+      return;
+    }
+
+    if (options.length < 2) {
+      handleStatus("Minimal 2 pilihan jawaban diperlukan.", "warning");
       return;
     }
 
@@ -137,11 +146,18 @@ export default function AdminPage() {
       category: newQuestion.category,
       text: newQuestion.text.trim(),
       image_url: newQuestion.image_url?.trim() || null,
-      answer_key: newQuestion.answer_key.trim(),
+      options,
+      answer_key: answerKey,
       is_active: false,
     });
 
-    setNewQuestion((prev) => ({ ...prev, text: "", image_url: "", answer_key: "" }));
+    setNewQuestion((prev) => ({
+      ...prev,
+      text: "",
+      image_url: "",
+      options: ["", ""],
+      correctOptionIndex: 0,
+    }));
     handleStatus("Soal baru ditambahkan.");
   };
 
@@ -219,9 +235,16 @@ export default function AdminPage() {
                       {activeQuestion?.text ?? "Belum ada soal dipilih"}
                     </p>
                     {activeQuestion?.answer_key && gameState?.p1_show_answer && (
-                      <p className="mt-3 text-sm text-emerald-300">
-                        Jawaban: {activeQuestion.answer_key}
-                      </p>
+                      <div className="mt-3 space-y-1 text-sm text-emerald-300">
+                        <p>Jawaban: {activeQuestion.answer_key}</p>
+                        {activeQuestion.options?.length ? (
+                          <ul className="list-inside list-disc text-xs text-emerald-200">
+                            {activeQuestion.options.map((option) => (
+                              <li key={option}>{option}</li>
+                            ))}
+                          </ul>
+                        ) : null}
+                      </div>
                     )}
                   </div>
                   <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
@@ -286,6 +309,9 @@ export default function AdminPage() {
                             active_phase: "PHASE_1",
                             p1_question_id: question.id,
                             p1_show_answer: false,
+                            p1_buzzer_open: true,
+                            p1_buzzer_locked_by: null,
+                            p1_answer_deadline: null,
                           });
                           handleStatus("Soal dipilih");
                         }}>
@@ -421,15 +447,73 @@ export default function AdminPage() {
                         />
                       </label>
                       <label className="flex flex-col gap-2">
-                        Jawaban
-                        <input
-                          className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
-                          type="text"
-                          value={newQuestion.answer_key}
-                          onChange={(event) =>
-                            setNewQuestion((prev) => ({ ...prev, answer_key: event.target.value }))
-                          }
-                        />
+                        Pilihan Jawaban
+                        <div className="space-y-2">
+                          {newQuestion.options.map((option, index) => (
+                            <div key={`option-${index}`} className="flex items-center gap-2">
+                              <input
+                                className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                                type="text"
+                                placeholder={`Pilihan ${index + 1}`}
+                                value={option}
+                                onChange={(event) =>
+                                  setNewQuestion((prev) => {
+                                    const updated = [...prev.options];
+                                    updated[index] = event.target.value;
+                                    return { ...prev, options: updated };
+                                  })
+                                }
+                              />
+                              <button
+                                className={`rounded-full border px-3 py-1 text-[10px] uppercase ${
+                                  newQuestion.correctOptionIndex === index
+                                    ? "border-emerald-400 text-emerald-200"
+                                    : "border-slate-600 text-slate-300"
+                                }`}
+                                type="button"
+                                onClick={() =>
+                                  setNewQuestion((prev) => ({
+                                    ...prev,
+                                    correctOptionIndex: index,
+                                  }))
+                                }>
+                                {newQuestion.correctOptionIndex === index ? "Benar" : "Pilih"}
+                              </button>
+                              <button
+                                className="rounded-full border border-rose-500/50 px-3 py-1 text-[10px] text-rose-200"
+                                type="button"
+                                disabled={newQuestion.options.length <= 2}
+                                onClick={() =>
+                                  setNewQuestion((prev) => {
+                                    if (prev.options.length <= 2) return prev;
+                                    const updated = prev.options.filter((_, optIndex) => optIndex !== index);
+                                    const nextCorrect = Math.min(
+                                      prev.correctOptionIndex,
+                                      updated.length - 1
+                                    );
+                                    return {
+                                      ...prev,
+                                      options: updated,
+                                      correctOptionIndex: nextCorrect,
+                                    };
+                                  })
+                                }>
+                                Hapus
+                              </button>
+                            </div>
+                          ))}
+                          <button
+                            className="rounded-full border border-slate-600 px-3 py-1 text-[10px] uppercase text-slate-300"
+                            type="button"
+                            onClick={() =>
+                              setNewQuestion((prev) => ({
+                                ...prev,
+                                options: [...prev.options, ""],
+                              }))
+                            }>
+                            Tambah Pilihan
+                          </button>
+                        </div>
                       </label>
                       <button
                         className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-900"
@@ -450,7 +534,11 @@ export default function AdminPage() {
                   <button
                     className="rounded-full bg-amber-400 px-4 py-2 text-xs font-semibold text-slate-900"
                     onClick={async () => {
-                      await setGameState({ p1_buzzer_open: true, p1_buzzer_locked_by: null });
+                      await setGameState({
+                        p1_buzzer_open: true,
+                        p1_buzzer_locked_by: null,
+                        p1_answer_deadline: null,
+                      });
                       handleStatus("Buzzer dibuka");
                     }}>
                     Open Buzzer
@@ -458,7 +546,11 @@ export default function AdminPage() {
                   <button
                     className="rounded-full border border-slate-700 px-4 py-2 text-xs"
                     onClick={async () => {
-                      await setGameState({ p1_buzzer_open: false, p1_buzzer_locked_by: null });
+                      await setGameState({
+                        p1_buzzer_open: false,
+                        p1_buzzer_locked_by: null,
+                        p1_answer_deadline: null,
+                      });
                       handleStatus("Buzzer ditutup");
                     }}>
                     Close Buzzer

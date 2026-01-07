@@ -1,13 +1,14 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
-import { requireAdmin } from "@/lib/serverAuth";
-import { Timestamp } from "firebase-admin/firestore";
 import type { GameState } from "@/lib/types";
 
 export async function POST(request: Request) {
   try {
-    await requireAdmin();
     const { teamId } = (await request.json()) as { teamId: string };
+
+    if (!teamId) {
+      throw new Error("Team tidak ditemukan.");
+    }
 
     const result = await adminDb.runTransaction(async (transaction) => {
       const stateRef = adminDb.collection("game_state").doc("main");
@@ -19,15 +20,17 @@ export async function POST(request: Request) {
 
       const state = stateSnap.data() as GameState;
 
-      if (!state.p1_buzzer_open || state.p1_buzzer_locked_by) {
-        return { locked: false };
+      if (state.p1_buzzer_locked_by !== teamId) {
+        return { cleared: false };
       }
 
       transaction.update(stateRef, {
-        p1_buzzer_locked_by: teamId,
-        p1_answer_deadline: Timestamp.fromMillis(Date.now() + 30 * 1000),
+        p1_buzzer_open: false,
+        p1_buzzer_locked_by: null,
+        p1_answer_deadline: null,
       });
-      return { locked: true };
+
+      return { cleared: true };
     });
 
     return NextResponse.json(result);
