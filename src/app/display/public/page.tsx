@@ -30,12 +30,19 @@ export default function PublicDisplayPage() {
   }, [gameState?.active_phase, teams]);
 
   const activeTeamName = leaderboard.find((team) => team.id === gameState?.p3_active_team_id)?.name;
-  const maxScore = Math.max(
-    0,
-    ...leaderboard.map((team) =>
-      gameState?.active_phase === "PHASE_1" ? team.score_phase1 : team.final_score
-    )
-  );
+  const topFive = leaderboard.slice(0, 5);
+
+  const podiumSlots = [
+    { rankIndex: 3, height: 190 },
+    { rankIndex: 1, height: 250 },
+    { rankIndex: 0, height: 320 },
+    { rankIndex: 2, height: 230 },
+    { rankIndex: 4, height: 170 },
+  ];
+
+  const standings = podiumSlots
+    .map((slot) => ({ ...slot, team: topFive[slot.rankIndex] }))
+    .filter((slot) => slot.team);
 
   return (
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black px-8 py-10 text-white">
@@ -56,34 +63,30 @@ export default function PublicDisplayPage() {
         </header>
 
         <section className="grid gap-4">
-          {leaderboard.map((team, index) => {
-            const score =
-              gameState?.active_phase === "PHASE_1" ? team.score_phase1 : team.final_score;
-            const barWidth = maxScore ? Math.max(10, (score / maxScore) * 100) : 10;
+          <div className="grid items-end gap-4 md:grid-cols-5">
+            {standings.map(({ team, height }) => {
+              if (!team) return null;
+              const score =
+                gameState?.active_phase === "PHASE_1" ? team.score_phase1 : team.final_score;
+              const rank = leaderboard.findIndex((entry) => entry.id === team.id) + 1;
 
-            return (
-              <div
-                key={team.id}
-                className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl font-semibold text-slate-300">#{index + 1}</span>
-                    <div>
-                      <p className="text-lg font-semibold text-white">{team.name}</p>
-                      <p className="text-xs text-slate-400">{team.prodi}</p>
-                    </div>
-                  </div>
-                  <div className="text-3xl font-bold text-white">{score.toFixed(1)}</div>
-                </div>
-                <div className="mt-4 h-3 w-full rounded-full bg-slate-800">
+              return (
+                <div
+                  key={team.id}
+                  className="flex flex-col items-center justify-end rounded-3xl border border-slate-800 bg-slate-900/70 px-4 py-6 text-center shadow-lg"
+                  style={{ minHeight: `${height}px` }}>
+                  <span className="text-sm font-semibold text-slate-300">#{rank}</span>
+                  <p className="mt-2 text-lg font-semibold text-white">{team.name}</p>
+                  <p className="text-xs text-slate-400">{team.prodi}</p>
                   <div
-                    className="h-3 rounded-full transition-all"
-                    style={{ width: `${barWidth}%`, backgroundColor: team.color }}
-                  />
+                    className="mt-4 rounded-full px-3 py-1 text-xs font-semibold"
+                    style={{ backgroundColor: `${team.color}33`, color: team.color }}>
+                    {score.toFixed(1)} poin
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </section>
       </div>
     </main>

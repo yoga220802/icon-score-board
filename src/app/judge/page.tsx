@@ -13,6 +13,7 @@ import {
   type Phase2Scores,
   type Phase3Scores,
 } from "@/lib/scoring";
+import { addToast } from "@heroui/react";
 import type { AssessmentPhase } from "@/lib/types";
 
 const PHASE_2_FIELDS: Array<keyof Phase2Scores> = [
@@ -77,6 +78,11 @@ export default function JudgePage() {
   const fields = phase === "PHASE_2" ? PHASE_2_FIELDS : PHASE_3_FIELDS;
   const locked = Boolean(assessment);
 
+  const handleAlert = (message: string) => {
+    setStatus(message);
+    addToast({ title: message, severity: "success", timeout: 2500 });
+  };
+
   const handleSubmit = async () => {
     if (!user || !teamId) return;
     setSubmitting(true);
@@ -95,7 +101,7 @@ export default function JudgePage() {
       final_value: totalScore,
     });
 
-    setStatus("Skor berhasil dikunci.");
+    handleAlert("Skor berhasil dikunci.");
     setSubmitting(false);
   };
 
