@@ -222,7 +222,8 @@ export default function AdminPage() {
             </div>
           </header>
 
-          <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
+          {/* Make left column wider and right column narrower */}
+          <div className="grid gap-6 lg:grid-cols-[1.6fr_0.7fr]">
             <section className="space-y-6">
               <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
                 <h2 className="text-lg font-semibold text-white">Phase 1 — Control Soal & Buzzer</h2>
@@ -672,8 +673,9 @@ export default function AdminPage() {
               </div>
             </section>
 
-            <section className="space-y-6">
-              <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+            {/* Prevent overflow in the right column */}
+            <section className="space-y-6 min-w-0">
+              <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5">
                 <h2 className="text-lg font-semibold text-white">Ringkasan Tim</h2>
                 <div className="mt-4 grid gap-4">
                   {teams.map((team) => (
