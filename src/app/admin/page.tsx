@@ -13,6 +13,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useGameState } from "@/lib/hooks/useGameState";
 import { useTeams } from "@/lib/hooks/useTeams";
 import { useActiveQuestion } from "@/lib/hooks/useActiveQuestion";
+import { addToast } from "@heroui/react";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { callAdminApi } from "@/lib/api";
@@ -92,8 +93,12 @@ export default function AdminPage() {
     return () => clearInterval(timer);
   }, []);
 
-  const handleStatus = (message: string) => {
+  const handleStatus = (
+    message: string,
+    severity: "success" | "warning" | "danger" | "default" = "success"
+  ) => {
     setStatusMessage(message);
+    addToast({ title: message, severity, timeout: 2500 });
     window.setTimeout(() => setStatusMessage(null), 2000);
   };
 
@@ -118,7 +123,7 @@ export default function AdminPage() {
 
   const handleAddQuestion = async () => {
     if (!newQuestion.text.trim() || !newQuestion.answer_key.trim()) {
-      handleStatus("Lengkapi teks soal dan jawaban.");
+      handleStatus("Lengkapi teks soal dan jawaban.", "warning");
       return;
     }
 
