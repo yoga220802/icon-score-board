@@ -29,10 +29,14 @@ export default function PublicDisplayPage() {
     return [...teams].sort((a, b) => (b[scoreKey] ?? 0) - (a[scoreKey] ?? 0));
   }, [gameState?.active_phase, teams]);
 
+  const topTeams = leaderboard.slice(0, 5);
+  const podiumOrder = [3, 1, 0, 2, 4];
+  const podiumHeights = [150, 210, 280, 210, 150];
+
   const activeTeamName = leaderboard.find((team) => team.id === gameState?.p3_active_team_id)?.name;
   const maxScore = Math.max(
     0,
-    ...leaderboard.map((team) =>
+    ...topTeams.map((team) =>
       gameState?.active_phase === "PHASE_1" ? team.score_phase1 : team.final_score
     )
   );
@@ -55,35 +59,60 @@ export default function PublicDisplayPage() {
           )}
         </header>
 
-        <section className="grid gap-4">
-          {leaderboard.map((team, index) => {
-            const score =
-              gameState?.active_phase === "PHASE_1" ? team.score_phase1 : team.final_score;
-            const barWidth = maxScore ? Math.max(10, (score / maxScore) * 100) : 10;
+        <section className="space-y-6">
+          <div className="flex items-end justify-center gap-4">
+            {podiumOrder.map((leaderboardIndex, slotIndex) => {
+              const team = topTeams[leaderboardIndex];
+              const score = team
+                ? gameState?.active_phase === "PHASE_1"
+                  ? team.score_phase1
+                  : team.final_score
+                : 0;
+              const barHeight = maxScore ? Math.max(24, (score / maxScore) * 100) : 24;
 
-            return (
-              <div
-                key={team.id}
-                className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="text-2xl font-semibold text-slate-300">#{index + 1}</span>
-                    <div>
-                      <p className="text-lg font-semibold text-white">{team.name}</p>
-                      <p className="text-xs text-slate-400">{team.prodi}</p>
+              if (!team) {
+                return (
+                  <div
+                    key={`empty-${leaderboardIndex}`}
+                    className="flex w-40 flex-col items-center justify-end">
+                    <div
+                      className="w-full rounded-3xl border border-dashed border-slate-800 bg-slate-900/40"
+                      style={{ height: `${podiumHeights[slotIndex]}px` }}
+                    />
+                  </div>
+                );
+              }
+
+              return (
+                <div
+                  key={team.id}
+                  className="flex w-40 flex-col items-center justify-end gap-3 text-center">
+                  <div
+                    className="flex w-full flex-col items-center justify-end rounded-3xl border border-slate-800 bg-slate-900/70 px-4 pb-4 pt-6"
+                    style={{ height: `${podiumHeights[slotIndex]}px` }}>
+                    <span className="text-xs uppercase tracking-[0.25em] text-slate-400">
+                      #{leaderboardIndex + 1}
+                    </span>
+                    <p className="mt-2 text-base font-semibold text-white">{team.name}</p>
+                    <p className="text-xs text-slate-400">{team.prodi}</p>
+                    <p className="mt-3 text-lg font-bold text-cyan-200">{score.toFixed(1)}</p>
+                    <div className="mt-4 w-full">
+                      <div className="h-2 w-full rounded-full bg-slate-800">
+                        <div
+                          className="h-2 rounded-full transition-all"
+                          style={{ width: `${barHeight}%`, backgroundColor: team.color }}
+                        />
+                      </div>
                     </div>
                   </div>
-                  <div className="text-3xl font-bold text-white">{score.toFixed(1)}</div>
+                  <div className="h-3 w-10 rounded-full bg-slate-800/80" />
                 </div>
-                <div className="mt-4 h-3 w-full rounded-full bg-slate-800">
-                  <div
-                    className="h-3 rounded-full transition-all"
-                    style={{ width: `${barWidth}%`, backgroundColor: team.color }}
-                  />
-                </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
+          <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-5 text-center text-sm text-slate-300">
+            Standings ditampilkan untuk 5 tim terbaik dengan posisi tertinggi di tengah.
+          </div>
         </section>
       </div>
     </main>
