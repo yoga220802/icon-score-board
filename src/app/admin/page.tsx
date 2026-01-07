@@ -1,295 +1,630 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { auth, db } from "@/lib/firebase";
-import { onAuthStateChanged, signOut } from "firebase/auth";
+import { useEffect, useMemo, useState } from "react";
 import {
-	collection,
-	onSnapshot,
-	query,
-	orderBy,
-	updateDoc,
-	doc,
-	setDoc,
+  addDoc,
+  collection,
+  onSnapshot,
+  orderBy,
+  query,
 } from "firebase/firestore";
-import { useRouter } from "next/navigation";
-import { Button, Input, Card, CardBody, User, Chip } from "@heroui/react";
+import { db } from "@/lib/firebase";
+import { ProtectedRoute } from "@/components/ProtectedRoute";
+import { useGameState } from "@/lib/hooks/useGameState";
+import { useTeams } from "@/lib/hooks/useTeams";
+import { useActiveQuestion } from "@/lib/hooks/useActiveQuestion";
+import { addToast } from "@heroui/react";
+import { signOut } from "firebase/auth";
+import { auth } from "@/lib/firebase";
+import { callAdminApi } from "@/lib/api";
+import type { GameState, Question, QuestionCategory, Team } from "@/lib/types";
 
-// Tipe data tim
-interface Team {
-	id: string;
-	name: string;
-	score: number;
-	color: string;
-	logoUrl?: string;
-}
+const BUZZER_KEYS: Record<string, string> = {
+  a: "inf",
+  s: "si",
+  d: "sipil",
+  f: "industri",
+  g: "arsi",
+};
+
+const formatSeconds = (seconds: number) => {
+  const safe = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safe / 60);
+  const remaining = safe % 60;
+  return `${minutes.toString().padStart(2, "0")}:${remaining
+    .toString()
+    .padStart(2, "0")}`;
+};
 
 export default function AdminPage() {
-	const [user, setUser] = useState<any>(null);
-	const [teams, setTeams] = useState<Team[]>([]);
-	const [permissionError, setPermissionError] = useState<string | null>(null);
-	const router = useRouter();
+  const { gameState } = useGameState();
+  const { teams } = useTeams("name");
+  const activeQuestion = useActiveQuestion(gameState?.p1_question_id);
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [duration, setDuration] = useState(60);
+  const [now, setNow] = useState(Date.now());
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [newQuestion, setNewQuestion] = useState({
+    number: 1,
+    category: "GENERAL" as QuestionCategory,
+    text: "",
+    image_url: "",
+    answer_key: "",
+  });
+  const [settings, setSettings] = useState({
+    general_count: 5,
+    logic_count: 5,
+    shuffle_questions: false,
+  });
 
-	const recommendedRules = `rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /teams/{teamId} {
-      allow read, write: if request.auth != null;
+  useEffect(() => {
+    const q = query(collection(db, "questions_phase1"), orderBy("number", "asc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setQuestions(snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Question) })));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
+    if (gameState?.p1_settings) {
+      setSettings({
+        general_count: gameState.p1_settings.general_count ?? 0,
+        logic_count: gameState.p1_settings.logic_count ?? 0,
+        shuffle_questions: gameState.p1_settings.shuffle_questions ?? false,
+      });
     }
-  }
-}`;
+  }, [gameState?.p1_settings]);
 
-	const maxScore = Math.max(0, ...teams.map((t) => t.score));
-	const totalScore = teams.reduce((a, b) => a + b.score, 0);
+  useEffect(() => {
+    const handleKey = (event: KeyboardEvent) => {
+      const teamId = BUZZER_KEYS[event.key.toLowerCase()];
+      if (!teamId || !gameState?.p1_buzzer_open || gameState?.p1_buzzer_locked_by) {
+        return;
+      }
+      callAdminApi("/api/admin/phase1/buzzer-lock", { teamId }).catch(() => undefined);
+    };
 
-	// Cek Auth User
-	useEffect(() => {
-		const unsubAuth = onAuthStateChanged(auth, (currentUser) => {
-			if (!currentUser) {
-				router.push("/login");
-			} else {
-				setUser(currentUser);
-			}
-		});
-		return () => unsubAuth();
-	}, [router]);
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [gameState?.p1_buzzer_open, gameState?.p1_buzzer_locked_by]);
 
-	// Fetch Data Tim
-	useEffect(() => {
-		if (!user) return;
-		setPermissionError(null);
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
-		// Di admin kita urutkan by ID saja biar posisinya statis tidak lompat-lompat
-		const q = query(collection(db, "teams"), orderBy("id", "asc"));
-		const unsubData = onSnapshot(
-			q,
-			(snapshot) => {
-				const teamsData = snapshot.docs.map((doc) => ({
-					id: doc.id,
-					...doc.data(),
-				})) as Team[];
-				setTeams(teamsData);
-			},
-			(err) => {
-				if (err.code === "permission-denied") {
-					setPermissionError("Akses ditolak (permission-denied). Periksa rules Firestore.");
-				} else {
-					setPermissionError(err.message);
-				}
-			}
-		);
+  const handleStatus = (
+    message: string,
+    severity: "success" | "warning" | "danger" | "default" = "success"
+  ) => {
+    setStatusMessage(message);
+    addToast({ title: message, severity, timeout: 2500 });
+    window.setTimeout(() => setStatusMessage(null), 2000);
+  };
 
-		return () => unsubData();
-	}, [user]);
+  const setGameState = async (updates: Partial<GameState>, timerEndMs?: number | null) => {
+    await callAdminApi("/api/admin/game-state", { updates, timerEndMs });
+  };
 
-	// Fungsi Update Skor
-	const handleUpdateScore = async (id: string, increment: number) => {
-		if (permissionError) return;
+  const timerRemaining = useMemo(() => {
+    if (!gameState?.p1_timer_end) return null;
+    const endMs = gameState.p1_timer_end.toDate().getTime();
+    return Math.max(0, Math.floor((endMs - now) / 1000));
+  }, [gameState?.p1_timer_end, now]);
 
-		// Cari tim saat ini untuk mendapatkan skor terakhir (prevent race condition sederhana)
-		// Di production yang padat, gunakan transaction. Tapi untuk ini, direct update oke.
-		const currentTeam = teams.find((t) => t.id === id);
-		if (currentTeam) {
-			try {
-				await updateDoc(doc(db, "teams", id), { score: currentTeam.score + increment });
-			} catch (e: any) {
-				if (e.code === "permission-denied")
-					setPermissionError("Tidak boleh update skor: permission-denied.");
-			}
-		}
-	};
+  const aiTimerRemaining = (team: Team) => {
+    if (!team.is_ai_active || !team.ai_timer_last_started) {
+      return team.ai_timer_remaining;
+    }
+    const startMs = team.ai_timer_last_started.toDate().getTime();
+    const elapsed = Math.floor((now - startMs) / 1000);
+    return Math.max(0, team.ai_timer_remaining - elapsed);
+  };
 
-	// Fungsi Reset / Inisialisasi Data Awal (Helper Dev)
-	const initializeTeams = async () => {
-		if (permissionError) return;
+  const handleAddQuestion = async () => {
+    if (!newQuestion.text.trim() || !newQuestion.answer_key.trim()) {
+      handleStatus("Lengkapi teks soal dan jawaban.", "warning");
+      return;
+    }
 
-		const defaultTeams = [
-			{ id: "team_1", name: "Tim Merah", color: "#E11D48", score: 0 },
-			{ id: "team_2", name: "Tim Biru", color: "#2563EB", score: 0 },
-			{ id: "team_3", name: "Tim Hijau", color: "#16A34A", score: 0 },
-			{ id: "team_4", name: "Tim Kuning", color: "#CA8A04", score: 0 },
-			{ id: "team_5", name: "Tim Ungu", color: "#9333EA", score: 0 },
-		];
+    await addDoc(collection(db, "questions_phase1"), {
+      number: newQuestion.number,
+      category: newQuestion.category,
+      text: newQuestion.text.trim(),
+      image_url: newQuestion.image_url?.trim() || null,
+      answer_key: newQuestion.answer_key.trim(),
+      is_active: false,
+    });
 
-		if (confirm("Ini akan mereset semua skor dan nama tim ke default. Lanjut?")) {
-			try {
-				for (const team of defaultTeams) {
-					await setDoc(doc(db, "teams", team.id), team);
-				}
-			} catch (e: any) {
-				if (e.code === "permission-denied")
-					setPermissionError("Reset gagal: permission-denied.");
-			}
-		}
-	};
+    setNewQuestion((prev) => ({ ...prev, text: "", image_url: "", answer_key: "" }));
+    handleStatus("Soal baru ditambahkan.");
+  };
 
-	if (!user)
-		return <div className='p-10 text-center'>Memuat autentikasi...</div>;
+  const handleSaveSettings = async () => {
+    await setGameState({
+      p1_settings: {
+        general_count: settings.general_count,
+        logic_count: settings.logic_count,
+        shuffle_questions: settings.shuffle_questions,
+      },
+    });
+    handleStatus("Pengaturan soal disimpan.");
+  };
 
-	return (
-		<div className='min-h-screen bg-gradient-to-br from-black via-gray-900 to-gray-950 p-4 md:p-8'>
-			{/* User Overview */}
-			<div className='mb-3 flex flex-wrap gap-2 items-center text-xs text-gray-400'>
-				<Chip size='sm' variant='flat' className='bg-blue-600/30 text-blue-200'>
-					UID: {user?.uid}
-				</Chip>
-				<Chip size='sm' variant='flat' className='bg-indigo-600/30 text-indigo-200'>
-					{user?.email}
-				</Chip>
-				{maxScore > 0 && (
-					<Chip size='sm' variant='flat' className='bg-emerald-600/30 text-emerald-200'>
-						Max: {maxScore}
-					</Chip>
-				)}
-				<Chip size='sm' variant='flat' className='bg-pink-600/30 text-pink-200'>
-					Total: {totalScore}
-				</Chip>
-			</div>
-			{/* Enhanced Header */}
-			<div className='relative flex justify-between items-center mb-8 bg-gradient-to-r from-gray-800/80 to-gray-900/80 p-5 rounded-2xl shadow-xl shadow-black/50 border border-gray-700/60 overflow-hidden'>
-				<div className='absolute -top-10 -left-10 w-40 h-40 bg-blue-600/20 rounded-full blur-2xl pointer-events-none' />
-				<div className='absolute -bottom-16 -right-16 w-56 h-56 bg-indigo-600/20 rounded-full blur-3xl pointer-events-none' />
-				<div>
-					<h1 className='text-2xl font-bold text-white'>Panel Kontrol Juri</h1>
-					<p className='text-gray-400 text-sm'>
-						Atur skor cerdas cermat secara realtime
-					</p>
-				</div>
-				<div className='flex gap-3'>
-					<Button size='sm' color='warning' variant='flat' onPress={initializeTeams}>
-						Reset Lomba
-					</Button>
-					<Button
-						size='sm'
-						color='danger'
-						variant='solid'
-						onPress={() => signOut(auth)}>
-						Logout
-					</Button>
-				</div>
-			</div>
+  return (
+    <ProtectedRoute allowedRoles={["admin"]}>
+      <div className="min-h-screen bg-slate-950 px-4 py-8 text-slate-100">
+        <div className="mx-auto max-w-7xl space-y-6">
+          <header className="flex flex-col gap-4 rounded-3xl border border-slate-800 bg-gradient-to-r from-slate-900/70 via-slate-900/40 to-slate-950/80 p-6 shadow-xl">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">
+                  Super Admin Command Center
+                </p>
+                <h1 className="text-2xl font-semibold md:text-3xl">ICON Score Board</h1>
+              </div>
+              <div className="flex items-center gap-3">
+                {statusMessage && (
+                  <span className="rounded-full bg-emerald-500/10 px-4 py-2 text-xs text-emerald-200">
+                    {statusMessage}
+                  </span>
+                )}
+                <button
+                  className="rounded-full border border-slate-700 px-4 py-2 text-xs text-slate-200"
+                  onClick={() => signOut(auth)}>
+                  Logout
+                </button>
+              </div>
+            </div>
+            <div className="grid gap-3 text-xs text-slate-400 md:grid-cols-3">
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+                <p>Phase aktif</p>
+                <p className="mt-2 text-lg font-semibold text-white">
+                  {gameState?.active_phase ?? "IDLE"}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+                <p>Pot Skor</p>
+                <p className="mt-2 text-lg font-semibold text-white">
+                  {gameState?.p1_pot_score ?? 0}
+                </p>
+              </div>
+              <div className="rounded-2xl border border-slate-800 bg-slate-900/70 p-4">
+                <p>Buzzer Locked</p>
+                <p className="mt-2 text-lg font-semibold text-white">
+                  {gameState?.p1_buzzer_locked_by ?? "-"}
+                </p>
+              </div>
+            </div>
+          </header>
 
-			{/* Error Message */}
-			{permissionError && (
-				<div className='max-w-4xl mx-auto mb-4 p-4 rounded-lg border border-red-500/30 bg-red-500/10 text-red-600 text-sm'>
-					{permissionError}
-					{permissionError.includes("permission-denied") && (
-						<div className='mt-2'>
-							<p className='text-xs mb-1'>Contoh aturan Firestore:</p>
-							<pre className='text-[11px] whitespace-pre-wrap bg-black/30 p-2 rounded border border-red-500/20 text-red-300'>
-								{recommendedRules}
-							</pre>
-						</div>
-					)}
-				</div>
-			)}
+          <div className="grid gap-6 lg:grid-cols-[1.1fr_1fr]">
+            <section className="space-y-6">
+              <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+                <h2 className="text-lg font-semibold text-white">Phase 1 — Control Soal & Buzzer</h2>
+                <div className="mt-4 grid gap-4 md:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                    <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
+                      Soal Aktif
+                    </p>
+                    <p className="mt-2 text-base text-white">
+                      {activeQuestion?.text ?? "Belum ada soal dipilih"}
+                    </p>
+                    {activeQuestion?.answer_key && gameState?.p1_show_answer && (
+                      <p className="mt-3 text-sm text-emerald-300">
+                        Jawaban: {activeQuestion.answer_key}
+                      </p>
+                    )}
+                  </div>
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                    <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
+                      Timer Soal
+                    </p>
+                    <div className="mt-2 flex items-center gap-2">
+                      <input
+                        className="w-20 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm"
+                        type="number"
+                        min={10}
+                        value={duration}
+                        onChange={(event) => setDuration(Number(event.target.value))}
+                      />
+                      <span className="text-xs text-slate-400">detik</span>
+                    </div>
+                    <p className="mt-3 text-lg font-semibold text-cyan-300">
+                      {timerRemaining !== null ? formatSeconds(timerRemaining) : "00:00"}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        className="rounded-full bg-cyan-500 px-4 py-2 text-xs font-semibold text-slate-900"
+                        onClick={async () => {
+                          await setGameState({}, Date.now() + duration * 1000);
+                          handleStatus("Timer dimulai");
+                        }}>
+                        Start Timer
+                      </button>
+                      <button
+                        className="rounded-full border border-slate-700 px-4 py-2 text-xs text-slate-200"
+                        onClick={async () => {
+                          await setGameState({}, null);
+                          handleStatus("Timer dihentikan");
+                        }}>
+                        Stop Timer
+                      </button>
+                      <button
+                        className="rounded-full border border-emerald-500/60 px-4 py-2 text-xs text-emerald-200"
+                        onClick={async () => {
+                          await setGameState({ p1_show_answer: !gameState?.p1_show_answer });
+                          handleStatus("Tampilan jawaban diperbarui");
+                        }}>
+                        {gameState?.p1_show_answer ? "Sembunyikan" : "Tampilkan"} Jawaban
+                      </button>
+                    </div>
+                  </div>
+                </div>
 
-			{/* List Tim */}
-			<div className='grid gap-5 max-w-5xl mx-auto'>
-				{teams.map((team) => {
-					const pct = maxScore ? Math.round((team.score / maxScore) * 100) : 0;
-					return (
-						<Card
-							key={team.id}
-							className='bg-gradient-to-br from-gray-900/80 to-black/80 border border-gray-700 hover:border-gray-500 transition-colors shadow-lg shadow-black/40'>
-							<CardBody>
-								<div className='flex flex-col md:flex-row items-center justify-between gap-4'>
-									{/* Info Tim */}
-									<div className='flex items-center gap-4 flex-1 w-full md:w-auto'>
-										<div
-											className='w-4 h-16 rounded-full'
-											style={{ backgroundColor: team.color }}></div>
-										<div className='flex-1'>
-											<h3 className='text-xl font-bold text-white'>{team.name}</h3>
-											<Chip size='sm' variant='flat' color='default'>
-												ID: {team.id}
-											</Chip>
-										</div>
-									</div>
+                <div className="mt-6 grid gap-3">
+                  <p className="text-xs uppercase tracking-[0.25em] text-slate-400">Daftar Soal</p>
+                  <div className="grid gap-2 max-h-56 overflow-y-auto pr-2">
+                    {questions.map((question) => (
+                      <button
+                        key={question.id}
+                        className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                          gameState?.p1_question_id === question.id
+                            ? "border-cyan-400 bg-cyan-500/10 text-cyan-200"
+                            : "border-slate-800 bg-slate-950/60 text-slate-200 hover:border-slate-600"
+                        }`}
+                        onClick={async () => {
+                          await setGameState({
+                            active_phase: "PHASE_1",
+                            p1_question_id: question.id,
+                            p1_show_answer: false,
+                          });
+                          handleStatus("Soal dipilih");
+                        }}>
+                        <div className="flex items-center justify-between">
+                          <span>
+                            #{question.number} •{" "}
+                            {question.category === "GENERAL" ? "Pengetahuan Umum" : "Kemampuan Logika"}
+                          </span>
+                          {question.is_active && (
+                            <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-200">
+                              Active
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-2 text-xs text-slate-400 line-clamp-2">
+                          {question.text}
+                        </p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
 
-									{/* Kontrol Skor */}
-									<div className='flex items-center gap-6 bg-black/40 p-3 rounded-lg'>
-										<Button
-											isIconOnly
-											radius='full'
-											color='danger'
-											variant='faded'
-											className='w-12 h-12'
-											isDisabled={!!permissionError}
-											onPress={() => handleUpdateScore(team.id, -10)}>
-											<span className='text-2xl font-bold'>-10</span>
-										</Button>
+                <div className="mt-8 grid gap-4 md:grid-cols-2">
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                    <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
+                      Pengaturan Soal Phase 1
+                    </p>
+                    <div className="mt-3 grid gap-3 text-sm">
+                      <label className="flex flex-col gap-2">
+                        Jumlah Pengetahuan Umum
+                        <input
+                          className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                          type="number"
+                          min={0}
+                          value={settings.general_count}
+                          onChange={(event) =>
+                            setSettings((prev) => ({
+                              ...prev,
+                              general_count: Number(event.target.value),
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        Jumlah Kemampuan Logika
+                        <input
+                          className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                          type="number"
+                          min={0}
+                          value={settings.logic_count}
+                          onChange={(event) =>
+                            setSettings((prev) => ({
+                              ...prev,
+                              logic_count: Number(event.target.value),
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="flex items-center gap-2 text-xs text-slate-300">
+                        <input
+                          type="checkbox"
+                          checked={settings.shuffle_questions}
+                          onChange={(event) =>
+                            setSettings((prev) => ({
+                              ...prev,
+                              shuffle_questions: event.target.checked,
+                            }))
+                          }
+                        />
+                        Acak urutan soal saat tampil
+                      </label>
+                      <button
+                        className="rounded-full bg-cyan-500 px-4 py-2 text-xs font-semibold text-slate-900"
+                        onClick={handleSaveSettings}>
+                        Simpan Pengaturan
+                      </button>
+                    </div>
+                  </div>
+                  <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                    <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
+                      Tambah Soal Phase 1
+                    </p>
+                    <div className="mt-3 grid gap-3 text-sm">
+                      <label className="flex flex-col gap-2">
+                        Nomor Soal
+                        <input
+                          className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                          type="number"
+                          min={1}
+                          value={newQuestion.number}
+                          onChange={(event) =>
+                            setNewQuestion((prev) => ({
+                              ...prev,
+                              number: Number(event.target.value),
+                            }))
+                          }
+                        />
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        Kategori
+                        <select
+                          className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                          value={newQuestion.category}
+                          onChange={(event) =>
+                            setNewQuestion((prev) => ({
+                              ...prev,
+                              category: event.target.value as QuestionCategory,
+                            }))
+                          }>
+                          <option value="GENERAL">Pengetahuan Umum</option>
+                          <option value="LOGIC">Kemampuan Logika</option>
+                        </select>
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        Teks Soal
+                        <textarea
+                          className="min-h-[80px] rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                          value={newQuestion.text}
+                          onChange={(event) =>
+                            setNewQuestion((prev) => ({ ...prev, text: event.target.value }))
+                          }
+                        />
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        URL Gambar (opsional)
+                        <input
+                          className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                          type="text"
+                          value={newQuestion.image_url}
+                          onChange={(event) =>
+                            setNewQuestion((prev) => ({ ...prev, image_url: event.target.value }))
+                          }
+                        />
+                      </label>
+                      <label className="flex flex-col gap-2">
+                        Jawaban
+                        <input
+                          className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                          type="text"
+                          value={newQuestion.answer_key}
+                          onChange={(event) =>
+                            setNewQuestion((prev) => ({ ...prev, answer_key: event.target.value }))
+                          }
+                        />
+                      </label>
+                      <button
+                        className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-900"
+                        onClick={handleAddQuestion}>
+                        Simpan Soal
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
-										<div className='text-center min-w-[80px]'>
-											<span className='text-3xl font-mono font-bold text-white'>
-												{team.score}
-											</span>
-											<p className='text-xs text-gray-500'>POIN</p>
-										</div>
+              <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+                <h2 className="text-lg font-semibold text-white">Phase 1 — Buzzer & Skor Pot</h2>
+                <p className="mt-2 text-xs text-slate-400">
+                  Shortcut buzzer: A=INF, S=SI, D=SIPIL, F=INDUSTRI, G=ARSI.
+                </p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    className="rounded-full bg-amber-400 px-4 py-2 text-xs font-semibold text-slate-900"
+                    onClick={async () => {
+                      await setGameState({ p1_buzzer_open: true, p1_buzzer_locked_by: null });
+                      handleStatus("Buzzer dibuka");
+                    }}>
+                    Open Buzzer
+                  </button>
+                  <button
+                    className="rounded-full border border-slate-700 px-4 py-2 text-xs"
+                    onClick={async () => {
+                      await setGameState({ p1_buzzer_open: false, p1_buzzer_locked_by: null });
+                      handleStatus("Buzzer ditutup");
+                    }}>
+                    Close Buzzer
+                  </button>
+                </div>
 
-										<Button
-											isIconOnly
-											radius='full'
-											color='success'
-											variant='shadow'
-											className='w-12 h-12'
-											isDisabled={!!permissionError}
-											onPress={() => handleUpdateScore(team.id, 10)}>
-											<span className='text-2xl font-bold'>+10</span>
-										</Button>
-									</div>
+                <div className="mt-6 grid gap-3 md:grid-cols-3">
+                  <button
+                    className="rounded-2xl bg-emerald-500 px-4 py-4 text-sm font-semibold text-slate-950"
+                    onClick={async () => {
+                      await callAdminApi("/api/admin/phase1/score", { action: "BENAR" });
+                      handleStatus("Skor BENAR diproses");
+                    }}>
+                    BENAR
+                  </button>
+                  <button
+                    className="rounded-2xl bg-rose-500 px-4 py-4 text-sm font-semibold text-white"
+                    onClick={async () => {
+                      await callAdminApi("/api/admin/phase1/score", { action: "SALAH" });
+                      handleStatus("Skor SALAH diproses");
+                    }}>
+                    SALAH
+                  </button>
+                  <button
+                    className="rounded-2xl border border-slate-600 px-4 py-4 text-sm font-semibold text-slate-200"
+                    onClick={async () => {
+                      await callAdminApi("/api/admin/phase1/score", { action: "HANGUS" });
+                      handleStatus("Soal hangus, pot direset");
+                    }}>
+                    HANGUS
+                  </button>
+                </div>
+              </div>
 
-									{/* Edit Sederhana (Opsional: Input Nama Tim) */}
-									<div className='w-full md:w-48'>
-										<div className="flex w-full flex-wrap md:flex-nowrap gap-4">
-											<Input
-												size='sm'
-												label='Ubah Nama'
-												variant='bordered'
-												className='w-full'
-												placeholder={team.name}
-												onBlur={(e) => {
-													if (permissionError) return;
-													const val = e.target.value;
-													if (val) {
-														updateDoc(doc(db, "teams", team.id), { name: val }).catch((err: any) => {
-															if (err.code === "permission-denied")
-																setPermissionError("Tidak boleh ubah nama: permission-denied.");
-														});
-													}
-												}}
-											/>
-										</div>
-									</div>
-								</div>
-								<div className='mt-4 space-y-1'>
-									<div className='h-2 w-full rounded-full bg-gray-700/40 overflow-hidden'>
-										<div
-											className='h-full transition-all duration-500'
-											style={{
-												width: `${pct}%`,
-												background: `linear-gradient(90deg, ${team.color}, ${team.color}AA)`,
-											}}
-										/>
-									</div>
-									<p className='text-[10px] text-gray-400 font-mono'>
-										{pct}% dari skor tertinggi
-									</p>
-								</div>
-							</CardBody>
-						</Card>
-					);
-				})}
+              <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+                <h2 className="text-lg font-semibold text-white">Phase 2 — Gacha & AI Timer</h2>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    className="rounded-full bg-purple-500 px-4 py-2 text-xs font-semibold text-white"
+                    onClick={async () => {
+                      await callAdminApi("/api/admin/gacha", { teamId: "all" });
+                      handleStatus("Gacha semua tim selesai");
+                    }}>
+                    Gacha Semua Tim
+                  </button>
+                </div>
 
-				{teams.length === 0 && !permissionError && (
-					<div className='text-center py-10'>
-						<p className='text-gray-500 mb-4'>Belum ada data tim.</p>
-						<Button color='primary' onPress={initializeTeams}>
-							Buat 5 Tim Default
-						</Button>
-					</div>
-				)}
-			</div>
-		</div>
-	);
+                <div className="mt-4 grid gap-3">
+                  {teams.map((team) => (
+                    <div
+                      key={team.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                      <div>
+                        <p className="text-sm font-semibold text-white">{team.name}</p>
+                        <p className="text-xs text-slate-400">Topik: {team.topic_phase2 || "-"}</p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-cyan-300">
+                          {formatSeconds(aiTimerRemaining(team))}
+                        </span>
+                        <button
+                          className="rounded-full border border-slate-700 px-3 py-2 text-xs text-slate-200"
+                          onClick={async () => {
+                            await callAdminApi("/api/admin/gacha", { teamId: team.id });
+                            handleStatus(`Gacha topik ${team.name}`);
+                          }}>
+                          Gacha
+                        </button>
+                        {team.is_ai_active ? (
+                          <button
+                            className="rounded-full bg-rose-500 px-3 py-2 text-xs font-semibold text-white"
+                            onClick={async () => {
+                              await callAdminApi("/api/admin/ai-timer", {
+                                teamId: team.id,
+                                action: "stop",
+                              });
+                              handleStatus(`Timer ${team.name} berhenti`);
+                            }}>
+                            Stop
+                          </button>
+                        ) : (
+                          <button
+                            className="rounded-full bg-emerald-500 px-3 py-2 text-xs font-semibold text-slate-900"
+                            onClick={async () => {
+                              await callAdminApi("/api/admin/ai-timer", {
+                                teamId: team.id,
+                                action: "start",
+                              });
+                              handleStatus(`Timer ${team.name} berjalan`);
+                            }}>
+                            Start
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+                <h2 className="text-lg font-semibold text-white">Phase 3 — Active Team</h2>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {teams.map((team) => (
+                    <button
+                      key={team.id}
+                      className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+                        gameState?.p3_active_team_id === team.id
+                          ? "bg-cyan-500 text-slate-900"
+                          : "border border-slate-700 text-slate-200"
+                      }`}
+                      onClick={async () => {
+                        await setGameState({ active_phase: "PHASE_3", p3_active_team_id: team.id });
+                        handleStatus(`Tim aktif: ${team.name}`);
+                      }}>
+                      {team.name}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="space-y-6">
+              <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+                <h2 className="text-lg font-semibold text-white">Ringkasan Tim</h2>
+                <div className="mt-4 grid gap-4">
+                  {teams.map((team) => (
+                    <div
+                      key={team.id}
+                      className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-white">{team.name}</p>
+                          <p className="text-xs text-slate-400">{team.prodi}</p>
+                        </div>
+                        <span className="rounded-full px-3 py-1 text-xs font-semibold"
+                          style={{ backgroundColor: `${team.color}33`, color: team.color }}
+                        >
+                          {team.id.toUpperCase()}
+                        </span>
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-3 text-xs text-slate-300">
+                        <div>
+                          <p className="text-slate-400">P1 Score</p>
+                          <p className="text-base font-semibold text-white">{team.score_phase1}</p>
+                        </div>
+                        <div>
+                          <p className="text-slate-400">Final Score</p>
+                          <p className="text-base font-semibold text-white">{team.final_score}</p>
+                        </div>
+                        <div>
+                          <p className="text-slate-400">P2 Avg</p>
+                          <p className="text-base font-semibold text-white">{team.total_score_phase2}</p>
+                        </div>
+                        <div>
+                          <p className="text-slate-400">P3 Avg</p>
+                          <p className="text-base font-semibold text-white">{team.total_score_phase3}</p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  className="mt-4 w-full rounded-2xl border border-slate-700 px-4 py-3 text-sm text-slate-200"
+                  onClick={async () => {
+                    await callAdminApi("/api/admin/recalculate", {});
+                    handleStatus("Recalculate selesai");
+                  }}>
+                  Recalculate Aggregation
+                </button>
+              </div>
+            </section>
+          </div>
+        </div>
+      </div>
+    </ProtectedRoute>
+  );
 }
