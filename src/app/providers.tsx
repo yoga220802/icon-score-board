@@ -2,13 +2,17 @@
 // dan harus berjalan di client-side ('use client')
 "use client";
 
-import { HeroUIProvider, ToastProvider } from "@heroui/react";
+// app/providers.tsx
 
-export function Providers({ children }: { children: React.ReactNode }) {
-	return (
-		<HeroUIProvider>
-			<ToastProvider placement="top-right" toastOffset={16} />
-			{children}
-		</HeroUIProvider>
-	);
+import {HeroUIProvider} from '@heroui/react'
+import {ToastProvider} from "@heroui/toast";
+import type { JSX, ReactNode } from 'react';
+
+export function Providers({children}: { children: ReactNode }): JSX.Element {
+  return (
+    <HeroUIProvider>
+      <ToastProvider placement="bottom-center" />
+      {children}
+    </HeroUIProvider>
+  )
 }

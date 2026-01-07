@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { setDoc, doc } from "firebase/firestore";
 import { addToast } from "@heroui/react";
-import { db } from "@/lib/firebase";
+import { db, auth } from "@/lib/firebase";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useAuth } from "@/lib/hooks/useAuth";
 import { useTeams } from "@/lib/hooks/useTeams";
@@ -15,6 +15,7 @@ import {
   type Phase3Scores,
 } from "@/lib/scoring";
 import type { AssessmentPhase } from "@/lib/types";
+import { signOut } from "firebase/auth";
 
 const PHASE_2_FIELDS: Array<keyof Phase2Scores> = [
   "analisis",
@@ -50,7 +51,8 @@ export default function JudgePage() {
       title: message,
       color,
       variant: "flat",
-      timeout: 2400,
+      timeout: 2000,
+      shouldShowTimeoutProgress: true,
     });
   };
 
@@ -116,7 +118,17 @@ export default function JudgePage() {
         <div className="mx-auto w-full max-w-3xl space-y-6">
           <header className="rounded-3xl border border-slate-800 bg-slate-900/70 p-6">
             <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">Judge Dashboard</p>
-            <h1 className="text-2xl font-semibold">Penilaian ICON</h1>
+            <div className="mt-2 flex items-center justify-between">
+              <h1 className="text-2xl font-semibold">Penilaian ICON</h1>
+              <button
+                className="rounded-full border border-slate-700 px-3 py-2 text-xs text-slate-200"
+                onClick={() => {
+                  notify("Logout berhasil.", "default");
+                  signOut(auth);
+                }}>
+                Logout
+              </button>
+            </div>
             <p className="text-sm text-slate-400">
               Isi skor per kriteria, total otomatis terhitung. Setelah submit tidak bisa diubah.
             </p>

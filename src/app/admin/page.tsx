@@ -63,7 +63,8 @@ export default function AdminPage() {
       title: message,
       color,
       variant: "flat",
-      timeout: 2400,
+      timeout: 2000,
+      shouldShowTimeoutProgress: true,
     });
     window.setTimeout(() => setStatusMessage(null), 2000);
   };
