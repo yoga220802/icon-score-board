@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { setDoc, doc } from "firebase/firestore";
+import { addToast } from "@heroui/react";
 import { db } from "@/lib/firebase";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useAuth } from "@/lib/hooks/useAuth";
@@ -43,6 +44,15 @@ export default function JudgePage() {
   const [scores, setScores] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+
+  const notify = (message: string, color: "success" | "warning" | "danger" | "default" = "success") => {
+    addToast({
+      title: message,
+      color,
+      variant: "flat",
+      timeout: 2400,
+    });
+  };
 
   useEffect(() => {
     if (teams.length && !teamId) {
@@ -96,6 +106,7 @@ export default function JudgePage() {
     });
 
     setStatus("Skor berhasil dikunci.");
+    notify("Skor berhasil dikunci.");
     setSubmitting(false);
   };
 
@@ -118,7 +129,10 @@ export default function JudgePage() {
                 <select
                   className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
                   value={teamId}
-                  onChange={(event) => setTeamId(event.target.value)}>
+                  onChange={(event) => {
+                    setTeamId(event.target.value);
+                    notify("Tim penilaian diperbarui.", "default");
+                  }}>
                   {teams.map((team) => (
                     <option key={team.id} value={team.id}>
                       {team.name}
@@ -131,7 +145,10 @@ export default function JudgePage() {
                 <select
                   className="mt-2 w-full rounded-xl border border-slate-700 bg-slate-950 px-3 py-2 text-sm text-white"
                   value={phase}
-                  onChange={(event) => setPhase(event.target.value as AssessmentPhase)}>
+                  onChange={(event) => {
+                    setPhase(event.target.value as AssessmentPhase);
+                    notify("Phase penilaian diperbarui.", "default");
+                  }}>
                   <option value="PHASE_2">Phase 2 — Innovation Lab</option>
                   <option value="PHASE_3">Phase 3 — Defense</option>
                 </select>

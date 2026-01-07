@@ -8,6 +8,7 @@ import {
   orderBy,
   query,
 } from "firebase/firestore";
+import { addToast } from "@heroui/react";
 import { db } from "@/lib/firebase";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { useGameState } from "@/lib/hooks/useGameState";
@@ -56,6 +57,17 @@ export default function AdminPage() {
     shuffle_questions: false,
   });
 
+  const handleStatus = (message: string, color: "success" | "warning" | "danger" | "default" = "success") => {
+    setStatusMessage(message);
+    addToast({
+      title: message,
+      color,
+      variant: "flat",
+      timeout: 2400,
+    });
+    window.setTimeout(() => setStatusMessage(null), 2000);
+  };
+
   useEffect(() => {
     const q = query(collection(db, "questions_phase1"), orderBy("number", "asc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -80,7 +92,9 @@ export default function AdminPage() {
       if (!teamId || !gameState?.p1_buzzer_open || gameState?.p1_buzzer_locked_by) {
         return;
       }
-      callAdminApi("/api/admin/phase1/buzzer-lock", { teamId }).catch(() => undefined);
+      callAdminApi("/api/admin/phase1/buzzer-lock", { teamId })
+        .then(() => handleStatus(`Buzzer terkunci: ${teamId.toUpperCase()}`))
+        .catch(() => undefined);
     };
 
     window.addEventListener("keydown", handleKey);
@@ -91,11 +105,6 @@ export default function AdminPage() {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
-
-  const handleStatus = (message: string) => {
-    setStatusMessage(message);
-    window.setTimeout(() => setStatusMessage(null), 2000);
-  };
 
   const setGameState = async (updates: Partial<GameState>, timerEndMs?: number | null) => {
     await callAdminApi("/api/admin/game-state", { updates, timerEndMs });
@@ -118,7 +127,7 @@ export default function AdminPage() {
 
   const handleAddQuestion = async () => {
     if (!newQuestion.text.trim() || !newQuestion.answer_key.trim()) {
-      handleStatus("Lengkapi teks soal dan jawaban.");
+      handleStatus("Lengkapi teks soal dan jawaban.", "warning");
       return;
     }
 
@@ -166,7 +175,10 @@ export default function AdminPage() {
                 )}
                 <button
                   className="rounded-full border border-slate-700 px-4 py-2 text-xs text-slate-200"
-                  onClick={() => signOut(auth)}>
+                  onClick={() => {
+                    handleStatus("Logout berhasil.", "default");
+                    signOut(auth);
+                  }}>
                   Logout
                 </button>
               </div>
