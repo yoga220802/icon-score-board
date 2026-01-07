@@ -1,42 +1,25 @@
+// rules_version = '2';
+
+// service cloud.firestore {
+//   match /databases/{database}/documents {
+//     match /{document=**} {
+//       allow read, write: if false;
+//     }
+//   }
+// }
+
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    function userRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
-    }
-
-    function isAdmin() {
-      return request.auth != null && userRole() == 'admin';
-    }
-
-    function isJudge() {
-      return request.auth != null && userRole() == 'judge';
-    }
-
-    match /users/{userId} {
-      allow read: if request.auth != null && request.auth.uid == userId;
-      allow create, update: if isAdmin();
-    }
-
+    
+    // Aturan untuk collection 'teams'
     match /teams/{teamId} {
+      // Allow read: true -> Semua orang (publik) boleh melihat skor
       allow read: if true;
-      allow write: if isAdmin();
-
-      match /assessments/{assessmentId} {
-        allow read: if true;
-        allow create: if isJudge() && request.resource.data.judge_id == request.auth.uid;
-        allow update, delete: if false;
-      }
+      
+      // Allow write: request.auth != null -> Hanya admin login yang boleh edit skor
+      allow write: if request.auth != null;
     }
-
-    match /questions_phase1/{questionId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
-
-    match /game_state/{docId} {
-      allow read: if true;
-      allow write: if isAdmin();
-    }
+    
   }
 }

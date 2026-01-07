@@ -1,4 +1,4 @@
-import "dotenv/config";
+import dotenv from 'dotenv'
 import { cert, getApps, initializeApp } from "firebase-admin/app";
 import { getFirestore } from "firebase-admin/firestore";
 
@@ -7,6 +7,13 @@ type ServiceAccount = {
   clientEmail: string;
   privateKey: string;
 };
+dotenv.config({ path: '.env.local' })
+
+console.log({
+  projectId: process.env.FIREBASE_ADMIN_PROJECT_ID,
+  clientEmail: process.env.FIREBASE_ADMIN_CLIENT_EMAIL,
+  hasPrivateKey: !!process.env.FIREBASE_ADMIN_PRIVATE_KEY,
+})
 
 const serviceAccountJson = process.env.FIREBASE_ADMIN_SERVICE_ACCOUNT_JSON;
 
