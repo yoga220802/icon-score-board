@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
+import { Timestamp } from "firebase-admin/firestore";
 import { requireAdmin } from "@/lib/serverAuth";
 import type { GameState } from "@/lib/types";
 
@@ -34,6 +35,7 @@ export async function POST(request: Request) {
           p1_question_id: null,
           p1_show_answer: false,
           p1_timer_end: null,
+          p1_timer_remaining: null,
           p1_answer_deadline: null,
         });
         return { ok: true };
@@ -56,6 +58,8 @@ export async function POST(request: Request) {
           p1_buzzer_open: false,
           p1_buzzer_locked_by: null,
           p1_answer_deadline: null,
+          p1_timer_end: null,
+          p1_timer_remaining: null,
         });
       }
 
@@ -63,11 +67,18 @@ export async function POST(request: Request) {
         transaction.update(teamRef, {
           score_phase1: teamScore - 5,
         });
+        const now = Date.now();
+        const resumeMs =
+          state.p1_timer_remaining !== null && state.p1_timer_remaining !== undefined
+            ? Timestamp.fromMillis(now + state.p1_timer_remaining * 1000)
+            : state.p1_timer_end ?? null;
         transaction.update(stateRef, {
           p1_pot_score: potScore + 5,
-          p1_buzzer_open: false,
+          p1_buzzer_open: true,
           p1_buzzer_locked_by: null,
           p1_answer_deadline: null,
+          p1_timer_end: resumeMs,
+          p1_timer_remaining: null,
         });
       }
 

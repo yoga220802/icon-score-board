@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { adminDb } from "@/lib/firebaseAdmin";
+import { Timestamp } from "firebase-admin/firestore";
+import { requireParticipant } from "@/lib/serverAuth";
 import type { GameState, Question } from "@/lib/types";
 
 export async function POST(request: Request) {
@@ -9,6 +11,8 @@ export async function POST(request: Request) {
     if (!teamId) {
       throw new Error("Team tidak ditemukan.");
     }
+
+    await requireParticipant(teamId);
 
     const trimmedAnswer = answer?.trim();
     if (!trimmedAnswer) {
@@ -51,6 +55,7 @@ export async function POST(request: Request) {
 
       const teamScore = teamSnap.data()?.score_phase1 ?? 0;
       const potScore = state.p1_pot_score ?? 0;
+      const now = Date.now();
 
       if (isCorrect) {
         transaction.update(teamRef, {
@@ -61,16 +66,24 @@ export async function POST(request: Request) {
           p1_buzzer_open: false,
           p1_buzzer_locked_by: null,
           p1_answer_deadline: null,
+          p1_timer_end: null,
+          p1_timer_remaining: null,
         });
       } else {
         transaction.update(teamRef, {
           score_phase1: teamScore - 5,
         });
+        const resumeMs =
+          state.p1_timer_remaining !== null && state.p1_timer_remaining !== undefined
+            ? Timestamp.fromMillis(now + state.p1_timer_remaining * 1000)
+            : state.p1_timer_end ?? null;
         transaction.update(stateRef, {
           p1_pot_score: potScore + 5,
-          p1_buzzer_open: false,
+          p1_buzzer_open: true,
           p1_buzzer_locked_by: null,
           p1_answer_deadline: null,
+          p1_timer_end: resumeMs,
+          p1_timer_remaining: null,
         });
       }
 
