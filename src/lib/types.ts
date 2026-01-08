@@ -1,12 +1,13 @@
 import type { Timestamp } from "firebase/firestore";
 
-export type UserRole = "admin" | "judge";
+export type UserRole = "admin" | "judge" | "participant";
 
 export interface UserDoc {
   uid: string;
   email: string;
   role: UserRole;
   name: string;
+  team_id?: string | null;
 }
 
 export interface Team {
@@ -45,6 +46,9 @@ export interface GameState {
   p1_question_id: string | null;
   p1_show_answer: boolean;
   p1_timer_end: Timestamp | null;
+  p1_timer_remaining?: number | null;
+  p1_question_duration?: number | null;
+  p1_answer_duration?: number | null;
   p1_answer_deadline?: Timestamp | null;
   p1_buzzer_open: boolean;
   p1_buzzer_locked_by: string | null;

@@ -4,12 +4,12 @@ Platform kompetisi real-time untuk Smart Society Innovation Challenge. Sistem in
 
 ## Fitur Utama
 
-- **Phase 1 (Cerdas Cermat):** kontrol soal, buzzer, timer, pot scoring, dan transaksi atomik.
+- **Phase 1 (Cerdas Cermat):** kontrol soal, buzzer otomatis, timer soal & timer jawab, pot scoring, dan transaksi atomik.
 - **Phase 2 (Innovation Lab):** gacha topik dan AI timer per tim.
 - **Phase 3 (Defense):** spotlight tim aktif dan penilaian juri.
 - **Realtime:** sinkronisasi <500ms via Firestore onSnapshot.
-- **Auth & RBAC:** admin dan juri dibatasi lewat Firebase Auth + Firestore rules.
-- **Manajemen Soal:** admin dapat menambahkan soal Phase 1 untuk kategori Pengetahuan Umum & Kemampuan Logika, sekaligus mengatur jumlah soal per kategori dan opsi acak.
+- **Auth & RBAC:** admin, juri, dan peserta dibatasi lewat Firebase Auth + Firestore rules.
+- **Manajemen Soal:** admin dapat menambahkan dan mengedit soal Phase 1 untuk kategori Pengetahuan Umum & Kemampuan Logika, sekaligus mengatur jumlah soal per kategori dan opsi acak.
 
 ## Tech Stack
 
@@ -125,7 +125,7 @@ npm run dev
 
 4. Buka browser di `http://localhost:3000`.
 
-## Setup User Admin & Juri (Firebase Auth + Firestore)
+## Setup User Admin, Juri, dan Peserta (Firebase Auth + Firestore)
 
 ### 1. Buat User di Firebase Authentication
 
@@ -134,6 +134,7 @@ npm run dev
 3. Buat akun:
    - `admin@icon.com` (Super Admin)
    - `juri1@icon.com`, `juri2@icon.com`, dst (Juri)
+   - `team1@icon.com`, `team2@icon.com`, dst (Peserta)
 
 ### 2. Isi Role di Collection `users`
 
@@ -150,17 +151,30 @@ Contoh struktur:
 }
 ```
 
-Untuk juri, gunakan `role: "judge"`.
+Untuk juri, gunakan `role: "judge"`. Untuk peserta, gunakan `role: "participant"` dan tambahkan `team_id`.
+
+Contoh peserta:
+
+```json
+{
+  "uid": "<uid>",
+  "email": "team1@icon.com",
+  "role": "participant",
+  "name": "Team INF",
+  "team_id": "inf"
+}
+```
 
 > **Catatan:** RBAC di app menggunakan collection `users`. Jika role belum diisi, user tidak bisa masuk halaman admin/judge.
 
 ## Akses Aplikasi
 
 - `http://localhost:3000/login` — Login admin/juri
+- `http://localhost:3000/participant/login` — Login peserta
 - `http://localhost:3000/admin` — Panel Admin (Super Admin)
 - `http://localhost:3000/judge` — Dashboard Juri
 - `http://localhost:3000/display/public` — Tampilan publik
-- `http://localhost:3000/display/participant/[teamId]` — Tampilan peserta per tim
+- `http://localhost:3000/display/participant/[teamId]` — Tampilan peserta per tim (butuh login peserta)
 
 ## Alur Penggunaan
 
@@ -169,11 +183,13 @@ Untuk juri, gunakan `role: "judge"`.
 1. Login dengan akun `admin@icon.com`.
 2. Tambah soal Phase 1 (Pengetahuan Umum / Kemampuan Logika).
 3. Atur jumlah soal per kategori dan opsi acak.
-4. Pilih soal, start timer, buka buzzer.
-5. Gunakan tombol **BENAR/SALAH/HANGUS** untuk scoring pot secara atomik.
-6. Lakukan gacha topik Phase 2 dan start/stop AI timer per tim.
-7. Set tim aktif Phase 3 untuk spotlight di public display.
-8. Klik **Recalculate Aggregation** untuk menghitung nilai akhir dari penilaian juri.
+4. Pilih soal: timer soal dan buzzer otomatis berjalan.
+5. Saat peserta mengunci buzzer, timer soal akan pause dan timer jawab berjalan sesuai durasi.
+6. Jawaban benar akan mengakhiri buzzer, jawaban salah akan membuka buzzer kembali otomatis.
+7. Gunakan tombol **BENAR/SALAH/HANGUS** untuk scoring pot secara atomik (opsional untuk override admin).
+8. Lakukan gacha topik Phase 2 dan start/stop AI timer per tim.
+9. Set tim aktif Phase 3 untuk spotlight di public display.
+10. Klik **Recalculate Aggregation** untuk menghitung nilai akhir dari penilaian juri.
 
 ### Judge Flow
 

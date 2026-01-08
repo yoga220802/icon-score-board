@@ -4,9 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
   addDoc,
   collection,
+  doc,
   onSnapshot,
   orderBy,
   query,
+  updateDoc,
 } from "firebase/firestore";
 import { addToast } from "@heroui/toast";
 import { db } from "@/lib/firebase";
@@ -41,7 +43,8 @@ export default function AdminPage() {
   const { teams } = useTeams("name");
   const activeQuestion = useActiveQuestion(gameState?.p1_question_id);
   const [questions, setQuestions] = useState<Question[]>([]);
-  const [duration, setDuration] = useState(60);
+  const [questionDuration, setQuestionDuration] = useState(60);
+  const [answerDuration, setAnswerDuration] = useState(20);
   const [now, setNow] = useState(Date.now());
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [newQuestion, setNewQuestion] = useState({
@@ -57,6 +60,15 @@ export default function AdminPage() {
     logic_count: 5,
     shuffle_questions: false,
   });
+  const [editingQuestion, setEditingQuestion] = useState<{
+    id: string;
+    number: number;
+    category: QuestionCategory;
+    text: string;
+    image_url: string;
+    options: string[];
+    correctOptionIndex: number;
+  } | null>(null);
 
   const handleStatus = (message: string, color: "success" | "warning" | "danger" | "default" = "success") => {
     setStatusMessage(message);
@@ -86,7 +98,13 @@ export default function AdminPage() {
         shuffle_questions: gameState.p1_settings.shuffle_questions ?? false,
       });
     }
-  }, [gameState?.p1_settings]);
+    if (typeof gameState?.p1_question_duration === "number") {
+      setQuestionDuration(gameState.p1_question_duration);
+    }
+    if (typeof gameState?.p1_answer_duration === "number") {
+      setAnswerDuration(gameState.p1_answer_duration);
+    }
+  }, [gameState?.p1_answer_duration, gameState?.p1_question_duration, gameState?.p1_settings]);
 
   useEffect(() => {
     const handleKey = (event: KeyboardEvent) => {
@@ -113,10 +131,15 @@ export default function AdminPage() {
   };
 
   const timerRemaining = useMemo(() => {
-    if (!gameState?.p1_timer_end) return null;
-    const endMs = gameState.p1_timer_end.toDate().getTime();
-    return Math.max(0, Math.floor((endMs - now) / 1000));
-  }, [gameState?.p1_timer_end, now]);
+    if (gameState?.p1_timer_end) {
+      const endMs = gameState.p1_timer_end.toDate().getTime();
+      return Math.max(0, Math.floor((endMs - now) / 1000));
+    }
+    if (gameState?.p1_timer_remaining !== null && gameState?.p1_timer_remaining !== undefined) {
+      return gameState.p1_timer_remaining;
+    }
+    return null;
+  }, [gameState?.p1_timer_end, gameState?.p1_timer_remaining, now]);
 
   const aiTimerRemaining = (team: Team) => {
     if (!team.is_ai_active || !team.ai_timer_last_started) {
@@ -170,6 +193,60 @@ export default function AdminPage() {
       },
     });
     handleStatus("Pengaturan soal disimpan.");
+  };
+
+  const handleSaveDurations = async () => {
+    await setGameState({
+      p1_question_duration: questionDuration,
+      p1_answer_duration: answerDuration,
+    });
+    handleStatus("Durasi fase 1 diperbarui.");
+  };
+
+  const handleEditQuestion = (question: Question) => {
+    const options = question.options?.length ? question.options : ["", ""];
+    const correctIndex = Math.max(
+      0,
+      options.findIndex((option) => option === question.answer_key)
+    );
+    setEditingQuestion({
+      id: question.id,
+      number: question.number,
+      category: question.category,
+      text: question.text,
+      image_url: question.image_url ?? "",
+      options,
+      correctOptionIndex: correctIndex,
+    });
+  };
+
+  const handleUpdateQuestion = async () => {
+    if (!editingQuestion) return;
+    const options = editingQuestion.options.map((option) => option.trim()).filter(Boolean);
+    const answerKey = options[editingQuestion.correctOptionIndex]?.trim() ?? "";
+
+    if (!editingQuestion.text.trim() || !answerKey) {
+      handleStatus("Lengkapi teks soal dan pilih jawaban.", "warning");
+      return;
+    }
+
+    if (options.length < 2) {
+      handleStatus("Minimal 2 pilihan jawaban diperlukan.", "warning");
+      return;
+    }
+
+    const questionRef = doc(db, "questions_phase1", editingQuestion.id);
+    await updateDoc(questionRef, {
+      number: editingQuestion.number,
+      category: editingQuestion.category,
+      text: editingQuestion.text.trim(),
+      image_url: editingQuestion.image_url?.trim() || null,
+      options,
+      answer_key: answerKey,
+    });
+
+    setEditingQuestion(null);
+    handleStatus("Soal berhasil diperbarui.");
   };
 
   return (
@@ -250,17 +327,31 @@ export default function AdminPage() {
                   </div>
                   <div className="rounded-2xl border border-slate-800 bg-slate-950/60 p-4">
                     <p className="text-xs uppercase tracking-[0.25em] text-slate-400">
-                      Timer Soal
+                      Durasi & Timer Fase 1
                     </p>
-                    <div className="mt-2 flex items-center gap-2">
-                      <input
-                        className="w-20 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm"
-                        type="number"
-                        min={10}
-                        value={duration}
-                        onChange={(event) => setDuration(Number(event.target.value))}
-                      />
-                      <span className="text-xs text-slate-400">detik</span>
+                    <div className="mt-3 grid gap-3 text-sm">
+                      <label className="flex items-center gap-2">
+                        Durasi soal
+                        <input
+                          className="w-20 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm"
+                          type="number"
+                          min={10}
+                          value={questionDuration}
+                          onChange={(event) => setQuestionDuration(Number(event.target.value))}
+                        />
+                        <span className="text-xs text-slate-400">detik</span>
+                      </label>
+                      <label className="flex items-center gap-2">
+                        Durasi jawab
+                        <input
+                          className="w-20 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm"
+                          type="number"
+                          min={5}
+                          value={answerDuration}
+                          onChange={(event) => setAnswerDuration(Number(event.target.value))}
+                        />
+                        <span className="text-xs text-slate-400">detik</span>
+                      </label>
                     </div>
                     <p className="mt-3 text-lg font-semibold text-cyan-300">
                       {timerRemaining !== null ? formatSeconds(timerRemaining) : "00:00"}
@@ -268,19 +359,16 @@ export default function AdminPage() {
                     <div className="mt-4 flex flex-wrap gap-2">
                       <button
                         className="rounded-full bg-cyan-500 px-4 py-2 text-xs font-semibold text-slate-900"
-                        onClick={async () => {
-                          await setGameState({}, Date.now() + duration * 1000);
-                          handleStatus("Timer dimulai");
-                        }}>
-                        Start Timer
+                        onClick={handleSaveDurations}>
+                        Simpan Durasi
                       </button>
                       <button
                         className="rounded-full border border-slate-700 px-4 py-2 text-xs text-slate-200"
                         onClick={async () => {
-                          await setGameState({}, null);
+                          await setGameState({ p1_timer_remaining: null }, null);
                           handleStatus("Timer dihentikan");
                         }}>
-                        Stop Timer
+                        Hentikan Timer
                       </button>
                       <button
                         className="rounded-full border border-emerald-500/60 px-4 py-2 text-xs text-emerald-200"
@@ -313,19 +401,33 @@ export default function AdminPage() {
                             p1_buzzer_open: true,
                             p1_buzzer_locked_by: null,
                             p1_answer_deadline: null,
-                          });
+                            p1_timer_remaining: null,
+                            p1_question_duration: questionDuration,
+                            p1_answer_duration: answerDuration,
+                          }, Date.now() + questionDuration * 1000);
                           handleStatus("Soal dipilih");
                         }}>
-                        <div className="flex items-center justify-between">
+                        <div className="flex items-center justify-between gap-2">
                           <span>
                             #{question.number} •{" "}
                             {question.category === "GENERAL" ? "Pengetahuan Umum" : "Kemampuan Logika"}
                           </span>
-                          {question.is_active && (
-                            <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-200">
-                              Active
-                            </span>
-                          )}
+                          <div className="flex items-center gap-2">
+                            <button
+                              className="rounded-full border border-slate-600 px-2 py-1 text-[10px] uppercase text-slate-300"
+                              type="button"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                handleEditQuestion(question);
+                              }}>
+                              Edit
+                            </button>
+                            {question.is_active && (
+                              <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-200">
+                                Active
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <p className="mt-2 text-xs text-slate-400 line-clamp-2">
                           {question.text}
@@ -523,6 +625,176 @@ export default function AdminPage() {
                       </button>
                     </div>
                   </div>
+                  {editingQuestion ? (
+                    <div className="rounded-2xl border border-emerald-500/30 bg-slate-950/60 p-4 md:col-span-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs uppercase tracking-[0.25em] text-emerald-200">
+                          Edit Soal Phase 1
+                        </p>
+                        <button
+                          className="rounded-full border border-slate-600 px-3 py-1 text-[10px] uppercase text-slate-300"
+                          type="button"
+                          onClick={() => setEditingQuestion(null)}>
+                          Batal
+                        </button>
+                      </div>
+                      <div className="mt-3 grid gap-3 text-sm">
+                        <label className="flex flex-col gap-2">
+                          Nomor Soal
+                          <input
+                            className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                            type="number"
+                            min={1}
+                            value={editingQuestion.number}
+                            onChange={(event) =>
+                              setEditingQuestion((prev) =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      number: Number(event.target.value),
+                                    }
+                                  : prev
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="flex flex-col gap-2">
+                          Kategori
+                          <select
+                            className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                            value={editingQuestion.category}
+                            onChange={(event) =>
+                              setEditingQuestion((prev) =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      category: event.target.value as QuestionCategory,
+                                    }
+                                  : prev
+                              )
+                            }>
+                            <option value="GENERAL">Pengetahuan Umum</option>
+                            <option value="LOGIC">Kemampuan Logika</option>
+                          </select>
+                        </label>
+                        <label className="flex flex-col gap-2">
+                          Teks Soal
+                          <textarea
+                            className="min-h-[80px] rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                            value={editingQuestion.text}
+                            onChange={(event) =>
+                              setEditingQuestion((prev) =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      text: event.target.value,
+                                    }
+                                  : prev
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="flex flex-col gap-2">
+                          URL Gambar (opsional)
+                          <input
+                            className="rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                            type="text"
+                            value={editingQuestion.image_url}
+                            onChange={(event) =>
+                              setEditingQuestion((prev) =>
+                                prev
+                                  ? {
+                                      ...prev,
+                                      image_url: event.target.value,
+                                    }
+                                  : prev
+                              )
+                            }
+                          />
+                        </label>
+                        <label className="flex flex-col gap-2">
+                          Pilihan Jawaban
+                          <div className="space-y-2">
+                            {editingQuestion.options.map((option, index) => (
+                              <div key={`edit-option-${index}`} className="flex items-center gap-2">
+                                <input
+                                  className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-2 py-1"
+                                  type="text"
+                                  placeholder={`Pilihan ${index + 1}`}
+                                  value={option}
+                                  onChange={(event) =>
+                                    setEditingQuestion((prev) => {
+                                      if (!prev) return prev;
+                                      const updated = [...prev.options];
+                                      updated[index] = event.target.value;
+                                      return { ...prev, options: updated };
+                                    })
+                                  }
+                                />
+                                <button
+                                  className={`rounded-full border px-3 py-1 text-[10px] uppercase ${
+                                    editingQuestion.correctOptionIndex === index
+                                      ? "border-emerald-400 text-emerald-200"
+                                      : "border-slate-600 text-slate-300"
+                                  }`}
+                                  type="button"
+                                  onClick={() =>
+                                    setEditingQuestion((prev) =>
+                                      prev ? { ...prev, correctOptionIndex: index } : prev
+                                    )
+                                  }>
+                                  {editingQuestion.correctOptionIndex === index ? "Benar" : "Pilih"}
+                                </button>
+                                <button
+                                  className="rounded-full border border-rose-500/50 px-3 py-1 text-[10px] text-rose-200"
+                                  type="button"
+                                  disabled={editingQuestion.options.length <= 2}
+                                  onClick={() =>
+                                    setEditingQuestion((prev) => {
+                                      if (!prev || prev.options.length <= 2) return prev;
+                                      const updated = prev.options.filter((_, optIndex) => optIndex !== index);
+                                      const nextCorrect = Math.min(
+                                        prev.correctOptionIndex,
+                                        updated.length - 1
+                                      );
+                                      return {
+                                        ...prev,
+                                        options: updated,
+                                        correctOptionIndex: nextCorrect,
+                                      };
+                                    })
+                                  }>
+                                  Hapus
+                                </button>
+                              </div>
+                            ))}
+                            <button
+                              className="rounded-full border border-slate-600 px-3 py-1 text-[10px] uppercase text-slate-300"
+                              type="button"
+                              onClick={() =>
+                                setEditingQuestion((prev) =>
+                                  prev ? { ...prev, options: [...prev.options, ""] } : prev
+                                )
+                              }>
+                              Tambah Pilihan
+                            </button>
+                          </div>
+                        </label>
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            className="rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-900"
+                            onClick={handleUpdateQuestion}>
+                            Simpan Perubahan
+                          </button>
+                          <button
+                            className="rounded-full border border-slate-600 px-4 py-2 text-xs text-slate-200"
+                            onClick={() => setEditingQuestion(null)}>
+                            Batal
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
 

@@ -6,9 +6,9 @@ import { useRouter } from "next/navigation";
 import { auth } from "@/lib/firebase";
 import { useAuth } from "@/lib/hooks/useAuth";
 
-export default function LoginPage() {
+export default function ParticipantLoginPage() {
   const router = useRouter();
-  const { role, user, loading, profile } = useAuth();
+  const { role, profile, user, loading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -16,18 +16,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     if (loading) return;
-    if (user && role === "admin") {
-      router.push("/admin");
-    }
-    if (user && role === "judge") {
-      router.push("/judge");
-    }
-    if (user && role === "participant") {
-      if (profile?.team_id) {
-        router.push(`/display/participant/${profile.team_id}`);
-      } else {
-        router.push("/");
-      }
+    if (user && role === "participant" && profile?.team_id) {
+      router.push(`/display/participant/${profile.team_id}`);
     }
   }, [loading, profile?.team_id, role, router, user]);
 
@@ -49,10 +39,10 @@ export default function LoginPage() {
     <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black px-6 py-16">
       <div className="mx-auto max-w-md space-y-8 rounded-3xl border border-slate-800 bg-slate-900/70 p-8 shadow-xl">
         <div className="space-y-2 text-center">
-          <p className="text-xs uppercase tracking-[0.3em] text-cyan-400">ICON Access</p>
-          <h1 className="text-2xl font-semibold text-white">Masuk Dashboard</h1>
+          <p className="text-xs uppercase tracking-[0.3em] text-emerald-400">ICON Participant</p>
+          <h1 className="text-2xl font-semibold text-white">Masuk Dashboard Peserta</h1>
           <p className="text-sm text-slate-400">
-            Gunakan akun admin atau juri untuk mengakses panel.
+            Gunakan akun peserta yang telah diberikan panitia.
           </p>
         </div>
 
@@ -86,7 +76,7 @@ export default function LoginPage() {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-xl bg-cyan-500 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-cyan-400 disabled:opacity-60">
+            className="w-full rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-slate-900 transition hover:bg-emerald-400 disabled:opacity-60">
             {submitting ? "Memproses..." : "Masuk"}
           </button>
         </form>

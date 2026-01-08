@@ -23,9 +23,20 @@ export async function POST(request: Request) {
         return { locked: false };
       }
 
+      const now = Date.now();
+      const answerDuration = state.p1_answer_duration ?? 20;
+      const hasRemaining =
+        state.p1_timer_remaining !== null && state.p1_timer_remaining !== undefined;
+      const timerRemaining =
+        state.p1_timer_end && !hasRemaining
+          ? Math.max(0, Math.ceil((state.p1_timer_end.toDate().getTime() - now) / 1000))
+          : state.p1_timer_remaining ?? null;
+
       transaction.update(stateRef, {
         p1_buzzer_locked_by: teamId,
-        p1_answer_deadline: Timestamp.fromMillis(Date.now() + 30 * 1000),
+        p1_answer_deadline: Timestamp.fromMillis(now + answerDuration * 1000),
+        p1_timer_end: null,
+        p1_timer_remaining: timerRemaining,
       });
       return { locked: true };
     });

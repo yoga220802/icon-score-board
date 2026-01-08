@@ -17,7 +17,7 @@ export default function HomePage() {
           </p>
         </header>
 
-        <section className="grid gap-6 md:grid-cols-2">
+        <section className="grid gap-6 md:grid-cols-3">
           <Link
             href="/display/public"
             className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 text-left transition hover:border-cyan-500/60 hover:bg-slate-900">
@@ -34,6 +34,14 @@ export default function HomePage() {
               Akses panel kontrol admin dan dashboard penilaian juri.
             </p>
           </Link>
+          <Link
+            href="/participant/login"
+            className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 text-left transition hover:border-emerald-500/60 hover:bg-slate-900">
+            <h2 className="text-xl font-semibold text-white">Login Peserta</h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Akses dashboard peserta untuk buzzer dan jawab soal.
+            </p>
+          </Link>
         </section>
 
         <section className="grid gap-4 rounded-2xl border border-slate-800 bg-slate-900/50 p-6 text-sm text-slate-300">
@@ -48,6 +56,9 @@ export default function HomePage() {
               </Link>
               <Link className="text-cyan-300 hover:text-cyan-200" href="/display/public">
                 /display/public
+              </Link>
+              <Link className="text-cyan-300 hover:text-cyan-200" href="/participant/login">
+                /participant/login
               </Link>
             </div>
           </div>
