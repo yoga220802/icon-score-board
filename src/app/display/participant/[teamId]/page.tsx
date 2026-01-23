@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
+import { signOut } from "firebase/auth";
 import { ParticipantRoute } from "@/components/ParticipantRoute";
 import { callParticipantApi } from "@/lib/api";
 import { useGameState } from "@/lib/hooks/useGameState";
 import { useTeams } from "@/lib/hooks/useTeams";
 import { useActiveQuestion } from "@/lib/hooks/useActiveQuestion";
+import { auth } from "@/lib/firebase";
 
 export default function ParticipantDisplayPage() {
   const params = useParams<{ teamId: string }>();
@@ -97,13 +99,22 @@ export default function ParticipantDisplayPage() {
           isLocked ? "bg-emerald-600" : "bg-slate-950"
         }`}>
         <div className="mx-auto max-w-5xl space-y-8">
-        <header className="space-y-2">
-          <p className="text-xs uppercase tracking-[0.3em] text-slate-300">Participant View</p>
-          <h1 className="text-3xl font-semibold md:text-5xl">
-            {team?.name ?? "Team"}
-          </h1>
-          {team?.prodi && <p className="text-sm text-slate-200">{team.prodi}</p>}
-        </header>
+          <header className="space-y-3">
+            <p className="text-xs uppercase tracking-[0.3em] text-slate-300">Participant View</p>
+            <div className="flex flex-wrap items-start justify-between gap-4">
+              <div>
+                <h1 className="text-3xl font-semibold md:text-5xl">
+                  {team?.name ?? "Team"}
+                </h1>
+                {team?.prodi && <p className="text-sm text-slate-200">{team.prodi}</p>}
+              </div>
+              <button
+                className="rounded-full border border-white/30 px-4 py-2 text-xs font-semibold text-white/90 transition hover:border-white/60"
+                onClick={() => signOut(auth)}>
+                Logout
+              </button>
+            </div>
+          </header>
 
           <section className="rounded-3xl border border-white/20 bg-black/30 p-8">
             <div className="flex flex-col gap-4">
@@ -131,60 +142,63 @@ export default function ParticipantDisplayPage() {
             </div>
           </section>
 
-        <section className="rounded-3xl border border-white/20 bg-black/30 p-6">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-slate-200">Status Buzzer</span>
-            <span className={`text-lg font-semibold ${isLocked ? "text-emerald-200" : "text-slate-100"}`}>
-              {isLocked ? "LOCKED!" : "Menunggu"}
-            </span>
-          </div>
-          {isLocked && (
-            <p className="mt-2 text-xs text-emerald-100">
-              Tim Anda berhasil mengunci buzzer. Pilih jawaban dalam {answerDuration} detik.
-            </p>
-          )}
-          {!isLocked && gameState?.p1_buzzer_open && activeQuestion?.text && (
-            <button
-              className="mt-4 rounded-full bg-cyan-400 px-4 py-2 text-xs font-semibold text-slate-900"
-              onClick={handleLock}>
-              Jawab
-            </button>
-          )}
-          {statusMessage && <p className="mt-3 text-xs text-white/80">{statusMessage}</p>}
-        </section>
-
-        {isLocked && activeQuestion?.options?.length ? (
           <section className="rounded-3xl border border-white/20 bg-black/30 p-6">
             <div className="flex items-center justify-between">
-              <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Pilih Jawaban</p>
-              {remainingSeconds !== null && (
-                <span className="text-sm font-semibold text-amber-200">
-                  {remainingSeconds}s
-                </span>
-              )}
+              <span className="text-sm text-slate-200">Status Buzzer</span>
+              <span
+                className={`text-lg font-semibold ${
+                  isLocked ? "text-emerald-200" : "text-slate-100"
+                }`}>
+                {isLocked ? "LOCKED!" : "Menunggu"}
+              </span>
             </div>
-            <div className="mt-4 grid gap-2">
-              {activeQuestion.options.map((option) => (
-                <button
-                  key={option}
-                  className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
-                    selectedAnswer === option
-                      ? "border-emerald-300 bg-emerald-500/20 text-white"
-                      : "border-white/20 text-slate-100 hover:border-white/50"
-                  }`}
-                  onClick={() => setSelectedAnswer(option)}>
-                  {option}
-                </button>
-              ))}
-            </div>
-            <button
-              className="mt-4 rounded-full bg-emerald-300 px-4 py-2 text-xs font-semibold text-slate-900"
-              onClick={handleSubmitAnswer}
-              disabled={remainingSeconds === 0}>
-              Kirim Jawaban
-            </button>
+            {isLocked && (
+              <p className="mt-2 text-xs text-emerald-100">
+                Tim Anda berhasil mengunci buzzer. Pilih jawaban dalam {answerDuration} detik.
+              </p>
+            )}
+            {!isLocked && gameState?.p1_buzzer_open && activeQuestion?.text && (
+              <button
+                className="mt-4 rounded-full bg-cyan-400 px-4 py-2 text-xs font-semibold text-slate-900"
+                onClick={handleLock}>
+                Jawab
+              </button>
+            )}
+            {statusMessage && <p className="mt-3 text-xs text-white/80">{statusMessage}</p>}
           </section>
-        ) : null}
+
+          {isLocked && activeQuestion?.options?.length ? (
+            <section className="rounded-3xl border border-white/20 bg-black/30 p-6">
+              <div className="flex items-center justify-between">
+                <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Pilih Jawaban</p>
+                {remainingSeconds !== null && (
+                  <span className="text-sm font-semibold text-amber-200">
+                    {remainingSeconds}s
+                  </span>
+                )}
+              </div>
+              <div className="mt-4 grid gap-2">
+                {activeQuestion.options.map((option) => (
+                  <button
+                    key={option}
+                    className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
+                      selectedAnswer === option
+                        ? "border-emerald-300 bg-emerald-500/20 text-white"
+                        : "border-white/20 text-slate-100 hover:border-white/50"
+                    }`}
+                    onClick={() => setSelectedAnswer(option)}>
+                    {option}
+                  </button>
+                ))}
+              </div>
+              <button
+                className="mt-4 rounded-full bg-emerald-300 px-4 py-2 text-xs font-semibold text-slate-900"
+                onClick={handleSubmitAnswer}
+                disabled={remainingSeconds === 0}>
+                Kirim Jawaban
+              </button>
+            </section>
+          ) : null}
         </div>
       </main>
     </ParticipantRoute>

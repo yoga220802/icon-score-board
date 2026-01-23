@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     };
 
     if (typeof timerEndMs === "number") {
-      updates.p1_timer_end = Timestamp.fromMillis(timerEndMs);
+      updates.p1_timer_end = Timestamp.fromMillis(timerEndMs) as unknown as GameState["p1_timer_end"];
     }
     if (timerEndMs === null) {
       updates.p1_timer_end = null;
