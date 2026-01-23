@@ -13,9 +13,7 @@ export async function POST(request: Request) {
     };
 
     if (typeof timerEndMs === "number") {
-      // FIX: Cast ke 'any' untuk mengatasi konflik tipe antara Timestamp Client (di GameState)
-      // dan Timestamp Admin (yang kita buat di sini). Secara runtime ini aman.
-      updates.p1_timer_end = Timestamp.fromMillis(timerEndMs) as any;
+      updates.p1_timer_end = Timestamp.fromMillis(timerEndMs) as unknown as GameState["p1_timer_end"];
     }
     if (timerEndMs === null) {
       updates.p1_timer_end = null;
