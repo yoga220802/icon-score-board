@@ -1,103 +1,69 @@
-"use client";
+import Link from "next/link";
 
-import { useEffect, useState } from "react";
-import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
-import { db } from "@/lib/firebase";
-import { Card, CardBody, CardFooter, Image, Skeleton } from "@heroui/react";
-import { motion, AnimatePresence } from "framer-motion";
+export default function HomePage() {
+  return (
+    <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-black px-6 py-16">
+      <div className="mx-auto flex max-w-5xl flex-col gap-12">
+        <header className="space-y-4">
+          <p className="text-sm uppercase tracking-[0.3em] text-slate-400">
+            Smart Society Innovation Challenge
+          </p>
+          <h1 className="text-4xl font-semibold text-white md:text-6xl">
+            ICON Score Board System
+          </h1>
+          <p className="max-w-2xl text-lg text-slate-300">
+            Platform terpadu untuk manajemen kompetisi, mulai dari cerdas cermat, lab
+            inovasi, hingga sesi defense. Semua sinkron real-time.
+          </p>
+        </header>
 
-interface Team {
-	id: string;
-	name: string;
-	score: number;
-	color: string;
-	logoUrl?: string;
-}
+        <section className="grid gap-6 md:grid-cols-3">
+          <Link
+            href="/display/public"
+            className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 text-left transition hover:border-cyan-500/60 hover:bg-slate-900">
+            <h2 className="text-xl font-semibold text-white">Public Display</h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Tampilan publik untuk proyektor dengan leaderboard live.
+            </p>
+          </Link>
+          <Link
+            href="/login"
+            className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 text-left transition hover:border-indigo-500/60 hover:bg-slate-900">
+            <h2 className="text-xl font-semibold text-white">Login Admin / Juri</h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Akses panel kontrol admin dan dashboard penilaian juri.
+            </p>
+          </Link>
+          <Link
+            href="/participant/login"
+            className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 text-left transition hover:border-emerald-500/60 hover:bg-slate-900">
+            <h2 className="text-xl font-semibold text-white">Login Peserta</h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Akses dashboard peserta untuk buzzer dan jawab soal.
+            </p>
+          </Link>
+        </section>
 
-export default function ScoreboardPage() {
-	const [teams, setTeams] = useState<Team[]>([]);
-	const [loading, setLoading] = useState(true);
-
-	useEffect(() => {
-		// Query teams diurutkan berdasarkan skor tertinggi
-		const q = query(collection(db, "teams"), orderBy("score", "desc"));
-
-		const unsubscribe = onSnapshot(q, (snapshot) => {
-			const teamsData = snapshot.docs.map((doc) => ({
-				id: doc.id,
-				...doc.data(),
-			})) as Team[];
-			setTeams(teamsData);
-			setLoading(false);
-		});
-
-		return () => unsubscribe();
-	}, []);
-
-	return (
-		<main className='flex min-h-screen flex-col items-center justify-center p-8 bg-black'>
-			<h1 className='text-4xl md:text-6xl font-bold mb-12 text-white tracking-widest uppercase'>
-				Papan Skor Langsung
-			</h1>
-
-			{loading ? (
-				// Tampilan Skeleton saat loading
-				<div className='flex gap-6 w-full justify-center flex-wrap'>
-					{[...Array(5)].map((_, i) => (
-						<Skeleton key={i} className='rounded-lg w-64 h-80 opacity-20' />
-					))}
-				</div>
-			) : (
-				// Grid Kartu Tim
-				<div className='grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-6 w-full max-w-[1600px]'>
-					<AnimatePresence>
-						{teams.map((team, index) => (
-							<motion.div
-								key={team.id}
-								layout // Magic animation saat posisi bertukar
-								initial={{ opacity: 0, scale: 0.8 }}
-								animate={{ opacity: 1, scale: 1 }}
-								transition={{ duration: 0.5 }}>
-								<Card
-									className='h-full border-none shadow-2xl'
-									style={{ backgroundColor: team.color }} // Warna dinamis dari DB
-								>
-									<CardBody className='overflow-visible py-8 items-center justify-center'>
-										<div className='w-32 h-32 bg-white/20 rounded-full flex items-center justify-center mb-4 overflow-hidden p-2'>
-											{/* Gunakan Logo jika ada, atau inisial jika tidak */}
-											{team.logoUrl ? (
-												<Image
-													alt={team.name}
-													className='object-cover w-full h-full'
-													src={team.logoUrl}
-													width={120}
-												/>
-											) : (
-												<span className='text-4xl font-bold text-white/80'>
-													{team.name.charAt(0)}
-												</span>
-											)}
-										</div>
-										<h2 className='text-2xl font-bold text-center text-white drop-shadow-md mb-2'>
-											{team.name}
-										</h2>
-										{index === 0 && (
-											<span className='bg-yellow-400 text-black px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider mb-2'>
-												Memimpin
-											</span>
-										)}
-									</CardBody>
-									<CardFooter className='justify-center bg-black/20 py-6'>
-										<p className='text-6xl font-black text-white drop-shadow-xl tracking-tighter'>
-											{team.score}
-										</p>
-									</CardFooter>
-								</Card>
-							</motion.div>
-						))}
-					</AnimatePresence>
-				</div>
-			)}
-		</main>
-	);
+        <section className="grid gap-4 rounded-2xl border border-slate-800 bg-slate-900/50 p-6 text-sm text-slate-300">
+          <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+            <span className="text-white">Shortcut akses cepat</span>
+            <div className="flex flex-wrap gap-3">
+              <Link className="text-cyan-300 hover:text-cyan-200" href="/admin">
+                /admin
+              </Link>
+              <Link className="text-cyan-300 hover:text-cyan-200" href="/judge">
+                /judge
+              </Link>
+              <Link className="text-cyan-300 hover:text-cyan-200" href="/display/public">
+                /display/public
+              </Link>
+              <Link className="text-cyan-300 hover:text-cyan-200" href="/participant/login">
+                /participant/login
+              </Link>
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+  );
 }
