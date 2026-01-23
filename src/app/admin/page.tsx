@@ -85,7 +85,7 @@ export default function AdminPage() {
   useEffect(() => {
     const q = query(collection(db, "questions_phase1"), orderBy("number", "asc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
-      setQuestions(snapshot.docs.map((doc) => ({ id: doc.id, ...(doc.data() as Question) })));
+      setQuestions(snapshot.docs.map((doc) => ({ ...(doc.data() as Question), id: doc.id })));
     });
     return () => unsubscribe();
   }, []);
