@@ -17,7 +17,6 @@ export default function ParticipantDisplayPage() {
   const { teams } = useTeams("name");
   const activeQuestion = useActiveQuestion(gameState?.p1_question_id);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
-  const [selectedAnswer, setSelectedAnswer] = useState<string>("");
   const [now, setNow] = useState(Date.now());
   const timeoutTriggered = useRef(false);
 
@@ -27,6 +26,10 @@ export default function ParticipantDisplayPage() {
   );
 
   const isLocked = gameState?.p1_buzzer_locked_by === params.teamId;
+  const lockedTeam = useMemo(
+    () => teams.find((item) => item.id === gameState?.p1_buzzer_locked_by),
+    [gameState?.p1_buzzer_locked_by, teams]
+  );
   const answerDeadline = gameState?.p1_answer_deadline?.toDate().getTime() ?? null;
   const remainingSeconds = answerDeadline ? Math.max(0, Math.ceil((answerDeadline - now) / 1000)) : null;
   const questionTimerRemaining = useMemo(() => {
@@ -39,7 +42,9 @@ export default function ParticipantDisplayPage() {
     }
     return null;
   }, [gameState?.p1_timer_end, gameState?.p1_timer_remaining, now]);
-  const answerDuration = gameState?.p1_answer_duration ?? 20;
+  const isBuzzerOpen = Boolean(gameState?.p1_buzzer_open);
+  const isBuzzerLockedByOther = Boolean(gameState?.p1_buzzer_locked_by && !isLocked);
+  const showTimer = Boolean(gameState?.p1_timer_end);
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 500);
@@ -67,28 +72,9 @@ export default function ParticipantDisplayPage() {
     setStatusMessage(null);
     try {
       await callParticipantApi("/api/participant/phase1/lock", { teamId: params.teamId });
-      setStatusMessage("Buzzer terkunci. Pilih jawaban!");
+      setStatusMessage("Buzzer terkunci. Tunggu keputusan juri.");
     } catch (error) {
       setStatusMessage((error as Error).message || "Gagal mengunci buzzer.");
-    }
-  };
-
-  const handleSubmitAnswer = async () => {
-    if (!selectedAnswer) {
-      setStatusMessage("Pilih jawaban terlebih dahulu.");
-      return;
-    }
-
-    setStatusMessage(null);
-    try {
-      const result = await callParticipantApi<{ correct?: boolean }>(
-        "/api/participant/phase1/answer",
-        { teamId: params.teamId, answer: selectedAnswer }
-      );
-      setStatusMessage(result.correct ? "Jawaban benar! ✅" : "Jawaban salah.");
-      setSelectedAnswer("");
-    } catch (error) {
-      setStatusMessage((error as Error).message || "Gagal mengirim jawaban.");
     }
   };
 
@@ -96,7 +82,7 @@ export default function ParticipantDisplayPage() {
     <ParticipantRoute teamId={params.teamId}>
       <main
         className={`min-h-screen px-8 py-10 text-white ${
-          isLocked ? "bg-emerald-600" : "bg-slate-950"
+          isLocked ? "bg-emerald-600" : isBuzzerLockedByOther ? "bg-amber-500" : "bg-slate-950"
         }`}>
         <div className="mx-auto max-w-5xl space-y-8">
           <header className="space-y-3">
@@ -120,7 +106,7 @@ export default function ParticipantDisplayPage() {
             <div className="flex flex-col gap-4">
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Soal Aktif</p>
-                {questionTimerRemaining !== null && (
+                {showTimer && questionTimerRemaining !== null && (
                   <span className="rounded-full bg-cyan-500/20 px-3 py-1 text-xs font-semibold text-cyan-200">
                     Sisa waktu: {questionTimerRemaining}s
                   </span>
@@ -149,54 +135,53 @@ export default function ParticipantDisplayPage() {
                 className={`text-lg font-semibold ${
                   isLocked ? "text-emerald-200" : "text-slate-100"
                 }`}>
-                {isLocked ? "LOCKED!" : "Menunggu"}
+                {isLocked ? "LOCKED!" : isBuzzerLockedByOther ? "Tidak tersedia" : "Menunggu"}
               </span>
             </div>
             {isLocked && (
               <p className="mt-2 text-xs text-emerald-100">
-                Tim Anda berhasil mengunci buzzer. Pilih jawaban dalam {answerDuration} detik.
+                Tim Anda berhasil mengunci buzzer. Silakan tunggu keputusan juri.
               </p>
             )}
-            {!isLocked && gameState?.p1_buzzer_open && activeQuestion?.text && (
+            {lockedTeam?.prodi && (
+              <p className="mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-amber-100">
+                PRODI {lockedTeam.prodi.toUpperCase()} sedang menjawab
+              </p>
+            )}
+            {isBuzzerLockedByOther && (
+              <p className="mt-1 text-xs text-white/80">
+                Prodi lain hanya bisa menonton dulu sampai buzzer dibuka kembali.
+              </p>
+            )}
+            {!isLocked && isBuzzerOpen && activeQuestion?.text && (
               <button
-                className="mt-4 rounded-full bg-cyan-400 px-4 py-2 text-xs font-semibold text-slate-900"
-                onClick={handleLock}>
+                className="mt-4 w-full rounded-3xl bg-cyan-400 px-4 py-6 text-lg font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
+                onClick={handleLock}
+                disabled={isBuzzerLockedByOther}>
                 Jawab
               </button>
+            )}
+            {!isBuzzerOpen && (
+              <p className="mt-3 text-xs text-white/80">Menunggu admin membuka buzzer.</p>
             )}
             {statusMessage && <p className="mt-3 text-xs text-white/80">{statusMessage}</p>}
           </section>
 
-          {isLocked && activeQuestion?.options?.length ? (
+          {activeQuestion?.options?.length ? (
             <section className="rounded-3xl border border-white/20 bg-black/30 p-6">
-              <div className="flex items-center justify-between">
-                <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Pilih Jawaban</p>
-                {remainingSeconds !== null && (
-                  <span className="text-sm font-semibold text-amber-200">
-                    {remainingSeconds}s
-                  </span>
-                )}
-              </div>
-              <div className="mt-4 grid gap-2">
-                {activeQuestion.options.map((option) => (
-                  <button
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Pilihan Jawaban</p>
+              <div className="mt-4 grid gap-3">
+                {activeQuestion.options.map((option, index) => (
+                  <div
                     key={option}
-                    className={`rounded-2xl border px-4 py-3 text-left text-sm transition ${
-                      selectedAnswer === option
-                        ? "border-emerald-300 bg-emerald-500/20 text-white"
-                        : "border-white/20 text-slate-100 hover:border-white/50"
-                    }`}
-                    onClick={() => setSelectedAnswer(option)}>
-                    {option}
-                  </button>
+                    className="flex items-center gap-4 rounded-2xl border border-white/20 bg-slate-950/40 px-4 py-3 text-sm text-slate-100">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-full border border-white/20 text-xs font-semibold text-white">
+                      {String.fromCharCode(65 + index)}
+                    </span>
+                    <span>{option}</span>
+                  </div>
                 ))}
               </div>
-              <button
-                className="mt-4 rounded-full bg-emerald-300 px-4 py-2 text-xs font-semibold text-slate-900"
-                onClick={handleSubmitAnswer}
-                disabled={remainingSeconds === 0}>
-                Kirim Jawaban
-              </button>
             </section>
           ) : null}
         </div>

@@ -17,13 +17,21 @@ export default function HomePage() {
           </p>
         </header>
 
-        <section className="grid gap-6 md:grid-cols-3">
+        <section className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
           <Link
             href="/display/public"
             className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 text-left transition hover:border-cyan-500/60 hover:bg-slate-900">
             <h2 className="text-xl font-semibold text-white">Public Display</h2>
             <p className="mt-2 text-sm text-slate-400">
               Tampilan publik untuk proyektor dengan leaderboard live.
+            </p>
+          </Link>
+          <Link
+            href="/display/public/question"
+            className="rounded-2xl border border-slate-800 bg-slate-900/60 p-6 text-left transition hover:border-amber-400/60 hover:bg-slate-900">
+            <h2 className="text-xl font-semibold text-white">Public Display (Soal)</h2>
+            <p className="mt-2 text-sm text-slate-400">
+              Tampilan publik khusus soal fase 1 beserta opsi jawabannya.
             </p>
           </Link>
           <Link
@@ -56,6 +64,11 @@ export default function HomePage() {
               </Link>
               <Link className="text-cyan-300 hover:text-cyan-200" href="/display/public">
                 /display/public
+              </Link>
+              <Link
+                className="text-cyan-300 hover:text-cyan-200"
+                href="/display/public/question">
+                /display/public/question
               </Link>
               <Link className="text-cyan-300 hover:text-cyan-200" href="/participant/login">
                 /participant/login

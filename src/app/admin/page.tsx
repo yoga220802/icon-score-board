@@ -373,10 +373,17 @@ export default function AdminPage() {
 												<button
 													className='rounded-full border border-slate-700 px-4 py-2 text-xs text-slate-200'
 													onClick={async () => {
-														await setGameState({ p1_timer_remaining: null }, null);
-														handleStatus("Timer dihentikan");
+														await setGameState(
+															{
+																p1_timer_remaining:
+																	timerRemaining ?? gameState?.p1_question_duration ?? questionDuration,
+																p1_timer_end: null,
+															},
+															null
+														);
+														handleStatus("Timer dijeda");
 													}}>
-													Hentikan Timer
+													Jeda Timer
 												</button>
 												<button
 													className='rounded-full border border-emerald-500/60 px-4 py-2 text-xs text-emerald-200'
@@ -413,16 +420,17 @@ export default function AdminPage() {
 																active_phase: "PHASE_1",
 																p1_question_id: question.id,
 																p1_show_answer: false,
-																p1_buzzer_open: true,
+																p1_buzzer_open: false,
 																p1_buzzer_locked_by: null,
 																p1_answer_deadline: null,
-																p1_timer_remaining: null,
+																p1_timer_remaining: questionDuration,
+																p1_timer_end: null,
 																p1_question_duration: questionDuration,
 																p1_answer_duration: answerDuration,
 															},
-															Date.now() + questionDuration * 1000
+															null
 														);
-														handleStatus("Soal dipilih");
+														handleStatus("Soal dipilih, buzzer siap dibuka");
 													}}
 													onKeyDown={(e) => {
 														if (e.key === "Enter" || e.key === " ") {
@@ -848,14 +856,18 @@ export default function AdminPage() {
 										<button
 											className='rounded-full bg-amber-400 px-4 py-2 text-xs font-semibold text-slate-900'
 											onClick={async () => {
-												await setGameState({
-													p1_buzzer_open: true,
-													p1_buzzer_locked_by: null,
-													p1_answer_deadline: null,
-												});
-												handleStatus("Buzzer dibuka");
+												await setGameState(
+													{
+														p1_buzzer_open: true,
+														p1_buzzer_locked_by: null,
+														p1_answer_deadline: null,
+														p1_timer_remaining: null,
+													},
+													Date.now() + questionDuration * 1000
+												);
+												handleStatus("Buzzer dimulai");
 											}}>
-											Open Buzzer
+											Mulai Buzzer
 										</button>
 										<button
 											className='rounded-full border border-slate-700 px-4 py-2 text-xs'
@@ -864,10 +876,13 @@ export default function AdminPage() {
 													p1_buzzer_open: false,
 													p1_buzzer_locked_by: null,
 													p1_answer_deadline: null,
+													p1_timer_end: null,
+													p1_timer_remaining:
+														timerRemaining ?? gameState?.p1_question_duration ?? questionDuration,
 												});
 												handleStatus("Buzzer ditutup");
 											}}>
-											Close Buzzer
+											Tutup Buzzer
 										</button>
 									</div>
 
