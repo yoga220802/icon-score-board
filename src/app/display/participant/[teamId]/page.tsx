@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import { signOut } from "firebase/auth";
+import { addToast } from "@heroui/toast";
 import { ParticipantRoute } from "@/components/ParticipantRoute";
 import { callParticipantApi } from "@/lib/api";
 import { useGameState } from "@/lib/hooks/useGameState";
@@ -17,6 +18,8 @@ export default function ParticipantDisplayPage() {
   const { teams } = useTeams("name");
   const activeQuestion = useActiveQuestion(gameState?.p1_question_id);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [answerText, setAnswerText] = useState("");
+  const [answerState, setAnswerState] = useState<"idle" | "answering" | "correct" | "wrong">("idle");
   const [now, setNow] = useState(Date.now());
   const timeoutTriggered = useRef(false);
 
@@ -45,6 +48,19 @@ export default function ParticipantDisplayPage() {
   const isBuzzerOpen = Boolean(gameState?.p1_buzzer_open);
   const isBuzzerLockedByOther = Boolean(gameState?.p1_buzzer_locked_by && !isLocked);
   const showTimer = Boolean(gameState?.p1_timer_end);
+  const shouldShowQuestion = gameState?.p1_show_question ?? true;
+  const visibleQuestion = shouldShowQuestion ? activeQuestion : null;
+  const isAnswering = isLocked && answerState !== "correct" && answerState !== "wrong";
+  const pageTheme =
+    answerState === "correct"
+      ? "bg-emerald-600"
+      : answerState === "wrong"
+        ? "bg-rose-600"
+        : isAnswering
+          ? "bg-amber-400"
+          : isBuzzerLockedByOther
+            ? "bg-amber-500"
+            : "bg-slate-950";
 
   useEffect(() => {
     const timer = setInterval(() => setNow(Date.now()), 500);
@@ -54,6 +70,10 @@ export default function ParticipantDisplayPage() {
   useEffect(() => {
     if (!isLocked) {
       timeoutTriggered.current = false;
+      if (answerState === "answering") {
+        setAnswerState("idle");
+        setAnswerText("");
+      }
       return;
     }
     if (!answerDeadline || remainingSeconds === null || remainingSeconds > 0) {
@@ -68,6 +88,17 @@ export default function ParticipantDisplayPage() {
     );
   }, [answerDeadline, isLocked, params.teamId, remainingSeconds]);
 
+  useEffect(() => {
+    setAnswerState("idle");
+    setAnswerText("");
+  }, [gameState?.p1_question_id]);
+
+  useEffect(() => {
+    if (isLocked && answerState === "idle") {
+      setAnswerState("answering");
+    }
+  }, [answerState, isLocked]);
+
   const handleLock = async () => {
     setStatusMessage(null);
     try {
@@ -78,12 +109,49 @@ export default function ParticipantDisplayPage() {
     }
   };
 
+  const handleSubmitAnswer = async () => {
+    const trimmed = answerText.trim();
+    if (!trimmed) {
+      setStatusMessage("Jawaban masih kosong.");
+      return;
+    }
+    setStatusMessage(null);
+    try {
+      const result = await callParticipantApi<{ correct: boolean }>(
+        "/api/participant/phase1/answer",
+        {
+          teamId: params.teamId,
+          answer: trimmed,
+        }
+      );
+      if (result.correct) {
+        setAnswerState("correct");
+        addToast({
+          title: "Jawaban benar! 🎉",
+          color: "success",
+          variant: "flat",
+          timeout: 2000,
+          shouldShowTimeoutProgress: true,
+        });
+      } else {
+        setAnswerState("wrong");
+        addToast({
+          title: "Jawaban salah.",
+          color: "danger",
+          variant: "flat",
+          timeout: 2000,
+          shouldShowTimeoutProgress: true,
+        });
+      }
+    } catch (error) {
+      setStatusMessage((error as Error).message || "Gagal mengirim jawaban.");
+    }
+  };
+
   return (
     <ParticipantRoute teamId={params.teamId}>
       <main
-        className={`min-h-screen px-8 py-10 text-white ${
-          isLocked ? "bg-emerald-600" : isBuzzerLockedByOther ? "bg-amber-500" : "bg-slate-950"
-        }`}>
+        className={`min-h-screen px-8 py-10 text-white transition-colors duration-300 ${pageTheme}`}>
         <div className="mx-auto max-w-5xl space-y-8">
           <header className="space-y-3">
             <p className="text-xs uppercase tracking-[0.3em] text-slate-300">Participant View</p>
@@ -113,13 +181,13 @@ export default function ParticipantDisplayPage() {
                 )}
               </div>
               <h2 className="text-2xl font-semibold text-white md:text-4xl">
-                {activeQuestion?.text ?? "Menunggu soal berikutnya..."}
+                {visibleQuestion?.text ?? "Menunggu soal berikutnya..."}
               </h2>
-              {activeQuestion?.image_url && (
+              {visibleQuestion?.image_url && (
                 <div className="relative mt-4 aspect-video w-full overflow-hidden rounded-2xl border border-white/20">
                   <Image
-                    src={activeQuestion.image_url}
-                    alt={activeQuestion.text}
+                    src={visibleQuestion.image_url}
+                    alt={visibleQuestion.text}
                     fill
                     className="object-cover"
                   />
@@ -133,14 +201,32 @@ export default function ParticipantDisplayPage() {
               <span className="text-sm text-slate-200">Status Buzzer</span>
               <span
                 className={`text-lg font-semibold ${
-                  isLocked ? "text-emerald-200" : "text-slate-100"
+                  isAnswering ? "text-amber-100" : answerState === "correct" ? "text-emerald-100" : "text-slate-100"
                 }`}>
-                {isLocked ? "LOCKED!" : isBuzzerLockedByOther ? "Tidak tersedia" : "Menunggu"}
+                {answerState === "correct"
+                  ? "BENAR!"
+                  : answerState === "wrong"
+                    ? "SALAH!"
+                    : isAnswering
+                      ? "MENJAWAB"
+                      : isBuzzerLockedByOther
+                        ? "Tidak tersedia"
+                        : "Menunggu"}
               </span>
             </div>
-            {isLocked && (
+            {isAnswering && (
+              <p className="mt-2 text-xs text-amber-100">
+                Tim Anda sedang menjawab. Masukkan jawaban sebelum waktu habis.
+              </p>
+            )}
+            {answerState === "correct" && (
               <p className="mt-2 text-xs text-emerald-100">
-                Tim Anda berhasil mengunci buzzer. Silakan tunggu keputusan juri.
+                Jawaban benar! Skor tim Anda telah diperbarui.
+              </p>
+            )}
+            {answerState === "wrong" && (
+              <p className="mt-2 text-xs text-rose-100">
+                Jawaban salah. Pot skor bertambah untuk perebutan berikutnya.
               </p>
             )}
             {lockedTeam?.prodi && (
@@ -153,7 +239,7 @@ export default function ParticipantDisplayPage() {
                 Prodi lain hanya bisa menonton dulu sampai buzzer dibuka kembali.
               </p>
             )}
-            {!isLocked && isBuzzerOpen && activeQuestion?.text && (
+            {!isLocked && isBuzzerOpen && visibleQuestion?.text && (
               <button
                 className="mt-4 w-full rounded-3xl bg-cyan-400 px-4 py-6 text-lg font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-60"
                 onClick={handleLock}
@@ -167,11 +253,37 @@ export default function ParticipantDisplayPage() {
             {statusMessage && <p className="mt-3 text-xs text-white/80">{statusMessage}</p>}
           </section>
 
-          {activeQuestion?.options?.length ? (
+          {isAnswering && (
+            <section className="rounded-3xl border border-white/20 bg-black/30 p-6">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-200">Kirim Jawaban</p>
+              <div className="mt-4 flex flex-col gap-3 sm:flex-row">
+                <input
+                  className="flex-1 rounded-2xl border border-white/30 bg-white/10 px-4 py-3 text-sm text-white placeholder:text-white/60 focus:outline-none"
+                  placeholder="Tulis jawaban tim..."
+                  value={answerText}
+                  onChange={(event) => setAnswerText(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      handleSubmitAnswer();
+                    }
+                  }}
+                />
+                <button
+                  className="rounded-2xl bg-slate-900/80 px-6 py-3 text-sm font-semibold text-white"
+                  type="button"
+                  onClick={handleSubmitAnswer}>
+                  Kirim
+                </button>
+              </div>
+            </section>
+          )}
+
+          {visibleQuestion?.options?.length ? (
             <section className="rounded-3xl border border-white/20 bg-black/30 p-6">
               <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Pilihan Jawaban</p>
               <div className="mt-4 grid gap-3">
-                {activeQuestion.options.map((option, index) => (
+                {visibleQuestion.options.map((option, index) => (
                   <div
                     key={option}
                     className="flex items-center gap-4 rounded-2xl border border-white/20 bg-slate-950/40 px-4 py-3 text-sm text-slate-100">
