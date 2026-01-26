@@ -237,7 +237,7 @@ export default function PublicQuestionPage() {
 								</h2>
 								{visibleQuestion?.image_url ? (
 									<div
-										className='relative mt-4 aspect-video w-full overflow-hidden rounded-2xl border border-white/20'
+										className='relative mt-4 aspect-video w-full overflow-hidden rounded-2xl border border-white/20 bg-black/40'
 										role='button'
 										tabIndex={0}
 										onClick={() => {
@@ -258,7 +258,7 @@ export default function PublicQuestionPage() {
 											src={visibleQuestion.image_url}
 											alt={visibleQuestion.text}
 											fill
-											className='object-cover'
+											className='object-contain'
 										/>
 									</div>
 								) : null}
