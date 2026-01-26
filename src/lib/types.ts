@@ -17,7 +17,8 @@ export interface Team {
   color: string;
   logo_url?: string | null;
   score_phase1: number;
-  topic_phase2: string;
+  topic_phase2?: Phase2TopicSummary | null;
+  drive_link_phase2?: string | null;
   ai_timer_remaining: number;
   ai_timer_last_started?: Timestamp | null;
   is_ai_active: boolean;
@@ -40,6 +41,15 @@ export interface Question {
 }
 
 export type GamePhase = "IDLE" | "PHASE_1" | "PHASE_2" | "PHASE_3";
+
+export interface Phase2Topic {
+  id: string;
+  prodi: string;
+  title: string;
+  case_study: string;
+}
+
+export type Phase2TopicSummary = Omit<Phase2Topic, "id"> & { id: string };
 
 export interface GameState {
   active_phase: GamePhase;

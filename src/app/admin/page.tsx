@@ -20,7 +20,7 @@ import { useActiveQuestion } from "@/lib/hooks/useActiveQuestion";
 import { signOut } from "firebase/auth";
 import { auth } from "@/lib/firebase";
 import { callAdminApi } from "@/lib/api";
-import type { GameState, Question, QuestionCategory, Team } from "@/lib/types";
+import type { GameState, Phase2Topic, Question, QuestionCategory, Team } from "@/lib/types";
 
 const BUZZER_KEYS: Record<string, string> = {
   a: "inf",
@@ -44,10 +44,20 @@ export default function AdminPage() {
   const { teams } = useTeams("name");
   const activeQuestion = useActiveQuestion(gameState?.p1_question_id);
   const [questions, setQuestions] = useState<Question[]>([]);
+  const [phase2Topics, setPhase2Topics] = useState<Phase2Topic[]>([]);
   const [questionDuration, setQuestionDuration] = useState(60);
   const [answerDuration, setAnswerDuration] = useState(20);
   const [now, setNow] = useState(Date.now());
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [isTopicModalOpen, setIsTopicModalOpen] = useState(false);
+  const [topicForm, setTopicForm] = useState({
+    id: "",
+    prodi: "",
+    title: "",
+    case_study: "",
+  });
+  const [editingTopicId, setEditingTopicId] = useState<string | null>(null);
+  const [scoreEdits, setScoreEdits] = useState<Record<string, number>>({});
   const [newQuestion, setNewQuestion] = useState({
     number: 1,
     category: "GENERAL" as QuestionCategory,
@@ -94,6 +104,14 @@ export default function AdminPage() {
   }, []);
 
   useEffect(() => {
+    const q = query(collection(db, "phase2_topics"), orderBy("prodi", "asc"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setPhase2Topics(snapshot.docs.map((doc) => ({ ...(doc.data() as Phase2Topic), id: doc.id })));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  useEffect(() => {
     if (gameState?.p1_settings) {
       setSettings({
         general_count: gameState.p1_settings.general_count ?? 0,
@@ -128,6 +146,18 @@ export default function AdminPage() {
     const timer = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    setScoreEdits((prev) => {
+      const updated: Record<string, number> = { ...prev };
+      teams.forEach((team) => {
+        if (updated[team.id] === undefined) {
+          updated[team.id] = team.score_phase1 ?? 0;
+        }
+      });
+      return updated;
+    });
+  }, [teams]);
 
   const setGameState = async (updates: Partial<GameState>, timerEndMs?: number | null) => {
     await callAdminApi("/api/admin/game-state", { updates, timerEndMs });
@@ -284,6 +314,74 @@ export default function AdminPage() {
     handleStatus("Soal dihapus.");
   };
 
+  const prodiOptions = useMemo(
+    () => Array.from(new Set(teams.map((team) => team.prodi).filter(Boolean))),
+    [teams]
+  );
+
+  const resetTopicForm = () => {
+    setTopicForm({ id: "", prodi: "", title: "", case_study: "" });
+    setEditingTopicId(null);
+  };
+
+  const openTopicModal = (topic?: Phase2Topic) => {
+    if (topic) {
+      setTopicForm({
+        id: topic.id,
+        prodi: topic.prodi,
+        title: topic.title,
+        case_study: topic.case_study,
+      });
+      setEditingTopicId(topic.id);
+    } else {
+      resetTopicForm();
+    }
+    setIsTopicModalOpen(true);
+  };
+
+  const handleSaveTopic = async () => {
+    if (!topicForm.prodi.trim() || !topicForm.title.trim() || !topicForm.case_study.trim()) {
+      handleStatus("Lengkapi prodi, judul topik, dan studi kasus.", "warning");
+      return;
+    }
+    if (editingTopicId) {
+      await updateDoc(doc(db, "phase2_topics", editingTopicId), {
+        prodi: topicForm.prodi.trim(),
+        title: topicForm.title.trim(),
+        case_study: topicForm.case_study.trim(),
+      });
+      handleStatus("Topik fase 2 diperbarui.");
+    } else {
+      await addDoc(collection(db, "phase2_topics"), {
+        prodi: topicForm.prodi.trim(),
+        title: topicForm.title.trim(),
+        case_study: topicForm.case_study.trim(),
+      });
+      handleStatus("Topik fase 2 ditambahkan.");
+    }
+    setIsTopicModalOpen(false);
+    resetTopicForm();
+  };
+
+  const handleDeleteTopic = async (topic: Phase2Topic) => {
+    const confirmed = window.confirm(`Hapus topik "${topic.title}" untuk ${topic.prodi}?`);
+    if (!confirmed) return;
+    await deleteDoc(doc(db, "phase2_topics", topic.id));
+    handleStatus("Topik fase 2 dihapus.");
+  };
+
+  const handleSaveScore = async (teamId: string) => {
+    await updateDoc(doc(db, "teams", teamId), {
+      score_phase1: scoreEdits[teamId] ?? 0,
+    });
+    handleStatus("Poin awal tim diperbarui.");
+  };
+
+  const handleResetPhase1Scores = async () => {
+    await callAdminApi("/api/admin/phase1/reset", {});
+    handleStatus("Skor fase 1 direset.");
+  };
+
   return (
 			<ProtectedRoute allowedRoles={["admin"]}>
 				<div className='min-h-screen bg-slate-950 px-4 py-8 text-slate-100'>
@@ -339,6 +437,39 @@ export default function AdminPage() {
 						{/* Make left column wider and right column narrower */}
 						<div className='grid gap-6 lg:grid-cols-[1.6fr_0.7fr]'>
 							<section className='space-y-6'>
+								<div className='rounded-3xl border border-slate-800 bg-slate-900/60 p-6'>
+									<h2 className='text-lg font-semibold text-white'>Kontrol Fase</h2>
+									<p className='mt-2 text-xs text-slate-400'>
+										Atur fase aktif secara manual dan reset skor fase 1.
+									</p>
+									<div className='mt-4 flex flex-wrap gap-2'>
+										{[
+											{ label: "Idle", phase: "IDLE" },
+											{ label: "Phase 1", phase: "PHASE_1" },
+											{ label: "Phase 2", phase: "PHASE_2" },
+											{ label: "Phase 3", phase: "PHASE_3" },
+										].map((item) => (
+											<button
+												key={item.phase}
+												className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
+													gameState?.active_phase === item.phase
+														? "bg-cyan-500 text-slate-900"
+														: "border border-slate-700 text-slate-200"
+												}`}
+												onClick={async () => {
+													await setGameState({ active_phase: item.phase as GameState["active_phase"] });
+													handleStatus(`Fase aktif: ${item.label}`);
+												}}>
+												{item.label}
+											</button>
+										))}
+										<button
+											className='rounded-full border border-rose-500/60 px-4 py-2 text-xs text-rose-200'
+											onClick={handleResetPhase1Scores}>
+											Reset Skor Phase 1
+										</button>
+									</div>
+								</div>
 								<div className='rounded-3xl border border-slate-800 bg-slate-900/60 p-6'>
 									<h2 className='text-lg font-semibold text-white'>
 										Phase 1 — Control Soal & Buzzer
@@ -1036,7 +1167,7 @@ export default function AdminPage() {
 												<div>
 													<p className='text-sm font-semibold text-white'>{team.name}</p>
 													<p className='text-xs text-slate-400'>
-														Topik: {team.topic_phase2 || "-"}
+														Topik: {team.topic_phase2?.title ?? "-"}
 													</p>
 												</div>
 												<div className='flex items-center gap-3'>
@@ -1079,6 +1210,65 @@ export default function AdminPage() {
 												</div>
 											</div>
 										))}
+									</div>
+								</div>
+
+								<div className='rounded-3xl border border-slate-800 bg-slate-900/60 p-6'>
+									<div className='flex flex-wrap items-center justify-between gap-3'>
+										<div>
+											<h2 className='text-lg font-semibold text-white'>
+												Phase 2 — Daftar Topik per Prodi
+											</h2>
+											<p className='mt-2 text-xs text-slate-400'>
+												Kelola topik & studi kasus untuk pengundian fase 2.
+											</p>
+										</div>
+										<button
+											className='rounded-full bg-cyan-500 px-4 py-2 text-xs font-semibold text-slate-900'
+											onClick={() => openTopicModal()}>
+											Tambah Topik
+										</button>
+									</div>
+									<div className='mt-4 grid gap-4'>
+										{phase2Topics.length === 0 ? (
+											<p className='text-xs text-slate-400'>
+												Belum ada topik. Tambahkan topik untuk setiap prodi.
+											</p>
+										) : (
+											phase2Topics.map((topic) => (
+												<div
+													key={topic.id}
+													className='rounded-2xl border border-slate-800 bg-slate-950/60 p-4'>
+													<div className='flex flex-wrap items-center justify-between gap-3'>
+														<div>
+															<p className='text-xs uppercase tracking-[0.25em] text-slate-400'>
+																{topic.prodi}
+															</p>
+															<p className='mt-2 text-sm font-semibold text-white'>
+																{topic.title}
+															</p>
+														</div>
+														<div className='flex items-center gap-2'>
+															<button
+																className='rounded-full border border-slate-600 px-3 py-1 text-[10px] uppercase text-slate-300'
+																type='button'
+																onClick={() => openTopicModal(topic)}>
+																Edit
+															</button>
+															<button
+																className='rounded-full border border-rose-500/50 px-3 py-1 text-[10px] uppercase text-rose-200'
+																type='button'
+																onClick={() => handleDeleteTopic(topic)}>
+																Hapus
+															</button>
+														</div>
+													</div>
+													<p className='mt-3 text-xs text-slate-300 line-clamp-3'>
+														{topic.case_study}
+													</p>
+												</div>
+											))
+										)}
 									</div>
 								</div>
 
@@ -1155,6 +1345,43 @@ export default function AdminPage() {
 														</p>
 													</div>
 												</div>
+												<div className='mt-4 grid gap-3 text-xs text-slate-300'>
+													<label className='flex flex-col gap-2'>
+														Poin awal Phase 1
+														<input
+															className='rounded-lg border border-slate-700 bg-slate-900 px-2 py-1 text-sm'
+															type='number'
+															value={scoreEdits[team.id] ?? 0}
+															onChange={(event) =>
+																setScoreEdits((prev) => ({
+																	...prev,
+																	[team.id]: Number(event.target.value),
+																}))
+															}
+														/>
+													</label>
+													<button
+														className='rounded-full border border-cyan-500/60 px-3 py-2 text-xs text-cyan-200'
+														onClick={() => handleSaveScore(team.id)}>
+														Simpan Poin Awal
+													</button>
+													<div className='rounded-xl border border-slate-800 bg-slate-900/60 p-3'>
+														<p className='text-[10px] uppercase tracking-[0.25em] text-slate-500'>
+															Link Dokumen Phase 2
+														</p>
+														{team.drive_link_phase2 ? (
+															<a
+																className='mt-2 block text-xs text-cyan-200 underline underline-offset-4'
+																href={team.drive_link_phase2}
+																target='_blank'
+																rel='noreferrer'>
+																{team.drive_link_phase2}
+															</a>
+														) : (
+															<p className='mt-2 text-xs text-slate-400'>Belum submit</p>
+														)}
+													</div>
+												</div>
 											</div>
 										))}
 									</div>
@@ -1171,6 +1398,84 @@ export default function AdminPage() {
 						</div>
 					</div>
 				</div>
+				{isTopicModalOpen && (
+					<div className='fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8'>
+						<div className='w-full max-w-2xl rounded-3xl border border-slate-700 bg-slate-950 p-6 shadow-2xl'>
+							<div className='flex items-center justify-between gap-3'>
+								<div>
+									<p className='text-xs uppercase tracking-[0.3em] text-cyan-400'>
+										{editingTopicId ? "Edit Topik" : "Tambah Topik"}
+									</p>
+									<h3 className='text-lg font-semibold text-white'>
+										Topik Phase 2
+									</h3>
+								</div>
+								<button
+									className='rounded-full border border-slate-700 px-3 py-1 text-xs text-slate-300'
+									onClick={() => {
+										setIsTopicModalOpen(false);
+										resetTopicForm();
+									}}>
+									Tutup
+								</button>
+							</div>
+							<div className='mt-4 grid gap-4 text-sm'>
+								<label className='flex flex-col gap-2'>
+									Program Studi
+									<input
+										className='rounded-lg border border-slate-700 bg-slate-900 px-3 py-2'
+										list='prodi-options'
+										value={topicForm.prodi}
+										onChange={(event) =>
+											setTopicForm((prev) => ({ ...prev, prodi: event.target.value }))
+										}
+										placeholder='Contoh: Informatika'
+									/>
+									<datalist id='prodi-options'>
+										{prodiOptions.map((prodi) => (
+											<option key={prodi} value={prodi} />
+										))}
+									</datalist>
+								</label>
+								<label className='flex flex-col gap-2'>
+									Judul Topik
+									<input
+										className='rounded-lg border border-slate-700 bg-slate-900 px-3 py-2'
+										value={topicForm.title}
+										onChange={(event) =>
+											setTopicForm((prev) => ({ ...prev, title: event.target.value }))
+										}
+									/>
+								</label>
+								<label className='flex flex-col gap-2'>
+									Narasi Studi Kasus
+									<textarea
+										className='min-h-[120px] rounded-lg border border-slate-700 bg-slate-900 px-3 py-2'
+										value={topicForm.case_study}
+										onChange={(event) =>
+											setTopicForm((prev) => ({ ...prev, case_study: event.target.value }))
+										}
+									/>
+								</label>
+								<div className='flex flex-wrap justify-end gap-2'>
+									<button
+										className='rounded-full border border-slate-700 px-4 py-2 text-xs text-slate-300'
+										onClick={() => {
+											setIsTopicModalOpen(false);
+											resetTopicForm();
+										}}>
+										Batal
+									</button>
+									<button
+										className='rounded-full bg-cyan-500 px-4 py-2 text-xs font-semibold text-slate-900'
+										onClick={handleSaveTopic}>
+										Simpan Topik
+									</button>
+								</div>
+							</div>
+						</div>
+					</div>
+				)}
 			</ProtectedRoute>
 		);
 }

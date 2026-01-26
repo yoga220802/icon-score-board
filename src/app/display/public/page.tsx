@@ -28,9 +28,8 @@ export default function PublicDisplayPage() {
   const { teams } = useTeams("name");
 
   const leaderboard = useMemo(() => {
-    const scoreKey = gameState?.active_phase === "PHASE_1" ? "score_phase1" : "final_score";
-    return [...teams].sort((a, b) => (b[scoreKey] ?? 0) - (a[scoreKey] ?? 0));
-  }, [gameState?.active_phase, teams]);
+    return [...teams].sort((a, b) => (b.score_phase1 ?? 0) - (a.score_phase1 ?? 0));
+  }, [teams]);
 
   const topTeams = leaderboard.slice(0, 5);
   const podiumOrder = [3, 1, 0, 2, 4];
@@ -41,12 +40,12 @@ export default function PublicDisplayPage() {
   const maxScore = Math.max(
     0,
     ...topTeams.map((team) =>
-      gameState?.active_phase === "PHASE_1" ? team.score_phase1 : team.final_score
+      team.score_phase1
     )
   );
   const minScore = Math.min(
     ...topTeams.map((team) =>
-      gameState?.active_phase === "PHASE_1" ? team.score_phase1 : team.final_score
+      team.score_phase1
     ),
     0
   );
@@ -103,9 +102,7 @@ export default function PublicDisplayPage() {
               {podiumOrder.map((leaderboardIndex) => {
               const team = topTeams[leaderboardIndex];
               const score = team
-                ? gameState?.active_phase === "PHASE_1"
-                  ? team.score_phase1
-                  : team.final_score
+                ? team.score_phase1
                 : 0;
               const barHeight = maxScore ? Math.max(24, (score / maxScore) * 100) : 24;
               const branding = team ? getTeamBranding(team) : null;
