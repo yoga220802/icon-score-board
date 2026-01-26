@@ -14,6 +14,16 @@ import { useActiveQuestion } from "@/lib/hooks/useActiveQuestion";
 import { auth, db } from "@/lib/firebase";
 import type { Phase2Topic } from "@/lib/types";
 
+const formatDuration = (seconds: number) => {
+	const safe = Math.max(0, Math.floor(seconds));
+	const hours = Math.floor(safe / 3600);
+	const minutes = Math.floor((safe % 3600) / 60);
+	const remaining = safe % 60;
+	return `${hours.toString().padStart(2, "0")}:${minutes
+		.toString()
+		.padStart(2, "0")}:${remaining.toString().padStart(2, "0")}`;
+};
+
 export default function ParticipantDisplayPage() {
 	const params = useParams<{ teamId: string }>();
 	const { gameState } = useGameState();
@@ -78,6 +88,22 @@ export default function ParticipantDisplayPage() {
 		}
 		return null;
 	}, [gameState?.p1_timer_end, gameState?.p1_timer_remaining, now]);
+	const phase2TimerRemaining = useMemo(() => {
+		if (gameState?.p2_timer_end) {
+			const endMs = gameState.p2_timer_end.toDate().getTime();
+			return Math.max(0, Math.ceil((endMs - now) / 1000));
+		}
+		return null;
+	}, [gameState?.p2_timer_end, now]);
+	const aiRemaining = useMemo(() => {
+		if (!team) return null;
+		if (!team.is_ai_active || !team.ai_timer_last_started) {
+			return team.ai_timer_remaining;
+		}
+		const startMs = team.ai_timer_last_started.toDate().getTime();
+		const elapsed = Math.floor((now - startMs) / 1000);
+		return Math.max(0, team.ai_timer_remaining - elapsed);
+	}, [now, team]);
 
 	const isBuzzerOpen = Boolean(gameState?.p1_buzzer_open);
 	const isBuzzerLockedByOther = Boolean(
@@ -394,11 +420,23 @@ export default function ParticipantDisplayPage() {
 											: "Pilih topik terlebih dahulu"}
 									</h2>
 								</div>
-								{isPhase1Winner && (
-									<span className='rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200'>
-										Tim pemenang fase 1 (pilih topik manual)
-									</span>
-								)}
+								<div className='flex flex-wrap items-center gap-2'>
+									{isPhase1Winner && (
+										<span className='rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200'>
+											Tim pemenang fase 1 (pilih topik manual)
+										</span>
+									)}
+									{phase2TimerRemaining !== null && (
+										<span className='rounded-full bg-cyan-500/20 px-3 py-1 text-xs font-semibold text-cyan-200'>
+											Sisa fase 2: {formatDuration(phase2TimerRemaining)}
+										</span>
+									)}
+									{aiRemaining !== null && (
+										<span className='rounded-full bg-amber-500/20 px-3 py-1 text-xs font-semibold text-amber-200'>
+											Sisa AI: {formatDuration(aiRemaining)}
+										</span>
+									)}
+								</div>
 							</div>
 
 							{hasSelectedTopic ? (
