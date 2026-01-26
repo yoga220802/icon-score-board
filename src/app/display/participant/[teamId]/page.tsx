@@ -4,6 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
 import { signOut } from "firebase/auth";
+import { addToast } from "@heroui/toast"; // Logic Toast dipertahankan
 import { ParticipantRoute } from "@/components/ParticipantRoute";
 import { callParticipantApi } from "@/lib/api";
 import { useGameState } from "@/lib/hooks/useGameState";
@@ -17,9 +18,19 @@ export default function ParticipantDisplayPage() {
 	const { teams } = useTeams("name");
 	const activeQuestion = useActiveQuestion(gameState?.p1_question_id);
 	const [statusMessage, setStatusMessage] = useState<string | null>(null);
+
+	// --- Logic State Benar/Salah (Dipertahankan) ---
+	// Note: Karena input dibuang, lo butuh trigger eksternal (misal: listen perubahan score)
+	// buat ngubah state ini jadi 'correct' atau 'wrong'.
+	const [answerState, setAnswerState] = useState<
+		"idle" | "answering" | "correct" | "wrong"
+	>("idle");
+
+	// --- Logic Image Modal (Dari Codex) ---
 	const [isImageOpen, setIsImageOpen] = useState(false);
 	const [activeImageUrl, setActiveImageUrl] = useState<string | null>(null);
 	const [activeImageAlt, setActiveImageAlt] = useState<string>("");
+
 	const [now, setNow] = useState(Date.now());
 	const timeoutTriggered = useRef(false);
 
@@ -38,6 +49,7 @@ export default function ParticipantDisplayPage() {
 	const remainingSeconds = answerDeadline
 		? Math.max(0, Math.ceil((answerDeadline - now) / 1000))
 		: null;
+
 	const questionTimerRemaining = useMemo(() => {
 		if (gameState?.p1_timer_end) {
 			const endMs = gameState.p1_timer_end.toDate().getTime();
@@ -51,6 +63,7 @@ export default function ParticipantDisplayPage() {
 		}
 		return null;
 	}, [gameState?.p1_timer_end, gameState?.p1_timer_remaining, now]);
+
 	const isBuzzerOpen = Boolean(gameState?.p1_buzzer_open);
 	const isBuzzerLockedByOther = Boolean(
 		gameState?.p1_buzzer_locked_by && !isLocked
@@ -58,21 +71,34 @@ export default function ParticipantDisplayPage() {
 	const showTimer = Boolean(gameState?.p1_timer_end);
 	const shouldShowQuestion = gameState?.p1_show_question ?? true;
 	const visibleQuestion = shouldShowQuestion ? activeQuestion : null;
-	const isAnswering = isLocked;
-	const pageTheme = isAnswering
-		? "bg-amber-400"
-		: isBuzzerLockedByOther
-		? "bg-amber-500"
-		: "bg-slate-950";
+
+	// --- Logic Background Color (Dipertahankan) ---
+	const isAnswering =
+		isLocked && answerState !== "correct" && answerState !== "wrong";
+	const pageTheme =
+		answerState === "correct"
+			? "bg-emerald-600"
+			: answerState === "wrong"
+			? "bg-rose-600"
+			: isAnswering
+			? "bg-amber-400"
+			: isBuzzerLockedByOther
+			? "bg-amber-500"
+			: "bg-slate-950";
 
 	useEffect(() => {
 		const timer = setInterval(() => setNow(Date.now()), 500);
 		return () => clearInterval(timer);
 	}, []);
 
+	// UseEffect Timeout
 	useEffect(() => {
 		if (!isLocked) {
 			timeoutTriggered.current = false;
+			// Reset state kalau buzzer lepas (misal di-reset admin atau timeout)
+			if (answerState === "answering") {
+				setAnswerState("idle");
+			}
 			return;
 		}
 		if (!answerDeadline || remainingSeconds === null || remainingSeconds > 0) {
@@ -85,7 +111,19 @@ export default function ParticipantDisplayPage() {
 		callParticipantApi("/api/participant/phase1/timeout", {
 			teamId: params.teamId,
 		}).catch(() => undefined);
-	}, [answerDeadline, isLocked, params.teamId, remainingSeconds]);
+	}, [answerDeadline, isLocked, params.teamId, remainingSeconds, answerState]);
+
+	// Reset state pas ganti soal
+	useEffect(() => {
+		setAnswerState("idle");
+	}, [gameState?.p1_question_id]);
+
+	// Auto set status 'MENJAWAB' pas buzzer terkunci
+	useEffect(() => {
+		if (isLocked && answerState === "idle") {
+			setAnswerState("answering");
+		}
+	}, [answerState, isLocked]);
 
 	const handleLock = async () => {
 		setStatusMessage(null);
@@ -99,6 +137,7 @@ export default function ParticipantDisplayPage() {
 		}
 	};
 
+	// --- Image Zoom Handler (Codex) ---
 	const handleOpenImage = (url: string, alt: string) => {
 		setActiveImageUrl(url);
 		setActiveImageAlt(alt);
@@ -144,6 +183,8 @@ export default function ParticipantDisplayPage() {
 							<h2 className='text-2xl font-semibold text-white md:text-4xl'>
 								{visibleQuestion?.text ?? "Menunggu soal berikutnya..."}
 							</h2>
+
+							{/* Image Section: Gabungan Codex (onClick) */}
 							{visibleQuestion?.image_url ? (
 								<div
 									className='relative mt-4 aspect-video w-full overflow-hidden rounded-2xl border border-white/20'
@@ -174,25 +215,47 @@ export default function ParticipantDisplayPage() {
 						</div>
 					</section>
 
+					{/* Status Section: Input dibuang, tapi logic text status dipertahankan */}
 					<section className='rounded-3xl border border-white/20 bg-black/30 p-6'>
 						<div className='flex items-center justify-between'>
 							<span className='text-sm text-slate-200'>Status Buzzer</span>
 							<span
 								className={`text-lg font-semibold ${
-									isAnswering ? "text-amber-100" : "text-slate-100"
+									isAnswering
+										? "text-amber-100"
+										: answerState === "correct"
+										? "text-emerald-100"
+										: "text-slate-100"
 								}`}>
-								{isAnswering
+								{answerState === "correct"
+									? "BENAR!"
+									: answerState === "wrong"
+									? "SALAH!"
+									: isAnswering
 									? "MENJAWAB"
 									: isBuzzerLockedByOther
 									? "Tidak tersedia"
 									: "Menunggu"}
 							</span>
 						</div>
+
+						{/* Conditional Text Updates */}
 						{isAnswering && (
 							<p className='mt-2 text-xs text-amber-100'>
-								Tim Anda sedang menjawab. Jawaban akan ditentukan oleh admin.
+								Tim Anda sedang menjawab. Silakan jawab secara lisan.
 							</p>
 						)}
+						{answerState === "correct" && (
+							<p className='mt-2 text-xs text-emerald-100'>
+								Jawaban benar! Skor tim Anda telah diperbarui.
+							</p>
+						)}
+						{answerState === "wrong" && (
+							<p className='mt-2 text-xs text-rose-100'>
+								Jawaban salah. Pot skor bertambah untuk perebutan berikutnya.
+							</p>
+						)}
+
 						{lockedTeam?.prodi && (
 							<p className='mt-2 text-xs font-semibold uppercase tracking-[0.2em] text-amber-100'>
 								PRODI {lockedTeam.prodi.toUpperCase()} sedang menjawab
@@ -203,6 +266,8 @@ export default function ParticipantDisplayPage() {
 								Prodi lain hanya bisa menonton dulu sampai buzzer dibuka kembali.
 							</p>
 						)}
+
+						{/* Button Lock / Jawab */}
 						{!isLocked && isBuzzerOpen && visibleQuestion?.text && (
 							<button
 								className='mt-4 w-full rounded-3xl bg-cyan-400 px-4 py-6 text-lg font-semibold text-slate-900 disabled:cursor-not-allowed disabled:opacity-60'
@@ -220,6 +285,8 @@ export default function ParticipantDisplayPage() {
 							<p className='mt-3 text-xs text-white/80'>{statusMessage}</p>
 						)}
 					</section>
+
+					{/* INPUT SECTION SUDAH DIHAPUS SESUAI REQUEST */}
 
 					{visibleQuestion?.options?.length ? (
 						<section className='rounded-3xl border border-white/20 bg-black/30 p-6'>
@@ -242,6 +309,8 @@ export default function ParticipantDisplayPage() {
 					) : null}
 				</div>
 			</main>
+
+			{/* Modal Image Viewer (Codex) */}
 			{isImageOpen && activeImageUrl ? (
 				<div
 					className='fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-6'
