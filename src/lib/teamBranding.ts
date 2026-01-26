@@ -16,7 +16,10 @@ const BRANDING_MAP: Record<string, TeamBranding> = {
   arsi: { color: "#a16207", logo: "/logos/arsi.svg" },
 };
 
-const normalizeKey = (value?: string | null) => value?.trim().toLowerCase() ?? "";
+const normalizeKey = (value: any) => {
+  if (typeof value !== 'string') return "";
+  return value.trim().toLowerCase();
+};
 
 export const getTeamBranding = (team?: Partial<Team> | null) => {
   if (!team) {
@@ -28,15 +31,17 @@ export const getTeamBranding = (team?: Partial<Team> | null) => {
 
   const idKey = normalizeKey(team.id);
   const prodiKey = normalizeKey(team.prodi);
-  const directMatch = BRANDING_MAP[idKey] ?? BRANDING_MAP[prodiKey];
+
+  const directMatch = BRANDING_MAP[idKey] || BRANDING_MAP[prodiKey];
 
   if (directMatch) {
     return directMatch;
   }
 
   const fuzzyMatch = Object.keys(BRANDING_MAP).find(
-    (key) => prodiKey.includes(key) || idKey.includes(key)
+    (key) => (prodiKey && prodiKey.includes(key)) || (idKey && idKey.includes(key))
   );
+
   if (fuzzyMatch) {
     return BRANDING_MAP[fuzzyMatch];
   }
