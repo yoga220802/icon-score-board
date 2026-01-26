@@ -1206,14 +1206,6 @@ export default function AdminPage() {
 											Mulai Fase 2 (2 Jam)
 										</button>
 										<button
-											className='rounded-full border border-cyan-400/60 px-4 py-2 text-xs font-semibold text-cyan-200'
-											onClick={async () => {
-												await setGameState({ active_phase: "PHASE_3" });
-												handleStatus("Fase 3 dimulai");
-											}}>
-											Mulai Fase 3
-										</button>
-										<button
 											className='rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-200'
 											onClick={async () => {
 												const remaining =
@@ -1450,6 +1442,16 @@ export default function AdminPage() {
 										Phase 3 — Active Team
 									</h2>
 									<div className='mt-4 flex flex-wrap gap-2'>
+										<button
+											className='rounded-full border border-cyan-400/60 px-4 py-2 text-xs font-semibold text-cyan-200'
+											onClick={async () => {
+												await setGameState({ active_phase: "PHASE_3" });
+												handleStatus("Fase 3 dimulai");
+											}}>
+											Mulai Fase 3
+										</button>
+									</div>
+									<div className='mt-3 flex flex-wrap gap-2'>
 										{teams.map((team) => (
 											<button
 												key={team.id}
