@@ -131,7 +131,7 @@ export default function ParticipantDisplayPage() {
               <h2 className="text-2xl font-semibold text-white md:text-4xl">
                 {visibleQuestion?.text ?? "Menunggu soal berikutnya..."}
               </h2>
-              {visibleQuestion?.image_url && (
+              {visibleQuestion?.image_url ? (
                 <div
                   className="relative mt-4 aspect-video w-full overflow-hidden rounded-2xl border border-white/20"
                   role="button"
@@ -152,7 +152,7 @@ export default function ParticipantDisplayPage() {
                     className="object-cover"
                   />
                 </div>
-              )}
+              ) : null}
             </div>
           </section>
 
