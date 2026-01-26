@@ -16,9 +16,11 @@ const BRANDING_MAP: Record<string, TeamBranding> = {
   arsi: { color: "#a16207", logo: "/logos/arsi.svg" },
 };
 
-const normalizeKey = (value: any) => {
-  if (typeof value !== 'string') return "";
-  return value.trim().toLowerCase();
+const normalizeKey = (value: unknown): string => {
+  if (typeof value === "string") {
+    return value.trim().toLowerCase();
+  }
+  return "";
 };
 
 export const getTeamBranding = (team?: Partial<Team> | null) => {
