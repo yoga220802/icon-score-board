@@ -166,7 +166,7 @@ export default function PublicQuestionPage() {
 							Daftar Topik per Prodi
 						</p>
 						{phase2TimerRemaining !== null && (
-							<p className='mt-2 text-xs font-semibold text-cyan-200'>
+							<p className='mt-3 inline-flex items-center rounded-full border border-cyan-300/40 bg-cyan-400/30 px-4 py-2 text-base font-bold text-cyan-100 shadow-lg shadow-cyan-500/30 md:text-xl'>
 								Sisa waktu fase 2: {formatDuration(phase2TimerRemaining)}
 							</p>
 						)}
@@ -180,7 +180,7 @@ export default function PublicQuestionPage() {
 											<p className='text-xs uppercase tracking-[0.2em] text-slate-400'>
 												{topic.prodi}
 											</p>
-											<span className='text-xs font-semibold text-amber-200'>
+											<span className='rounded-full border border-amber-300/40 bg-amber-400/20 px-3 py-1 text-sm font-semibold text-amber-100 shadow-sm shadow-amber-500/30 md:text-base'>
 												Sisa AI: {formatDuration(aiTimerRemaining(teamsById[topic.id]))}
 											</span>
 										</div>
@@ -210,7 +210,7 @@ export default function PublicQuestionPage() {
 										key={team.id}
 										className='flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2'>
 										<span className='font-semibold'>{team.name}</span>
-										<span className='text-xs text-amber-200'>
+										<span className='rounded-full border border-amber-300/30 bg-amber-400/15 px-3 py-1 text-sm font-semibold text-amber-100 md:text-base'>
 											{formatDuration(aiTimerRemaining(team))}
 										</span>
 									</div>
@@ -227,7 +227,7 @@ export default function PublicQuestionPage() {
 										Soal Aktif
 									</p>
 									{timerRemaining !== null && (
-										<span className='rounded-full bg-cyan-500/20 px-3 py-1 text-xs font-semibold text-cyan-200'>
+										<span className='rounded-full border border-cyan-300/40 bg-cyan-400/30 px-4 py-2 text-base font-bold text-cyan-100 shadow-lg shadow-cyan-500/30 md:text-xl'>
 											Sisa waktu: {timerRemaining}s
 										</span>
 									)}
