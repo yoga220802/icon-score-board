@@ -12,6 +12,7 @@ const getStatusText = (gameState: ReturnType<typeof useGameState>["gameState"]) 
   if (!gameState) return "Menunggu...";
 
   if (gameState.active_phase === "PHASE_1") {
+    if (!(gameState.p1_show_question ?? true)) return "SOAL DISEMBUNYIKAN";
     if (gameState.p1_show_answer) return "JAWABAN DITAMPILKAN";
     if (gameState.p1_buzzer_open) {
       return gameState.p1_buzzer_locked_by ? "BUZZER TERKUNCI" : "REBUTAN!";
@@ -28,6 +29,8 @@ export default function PublicQuestionPage() {
   const { gameState } = useGameState();
   const { teams } = useTeams("name");
   const activeQuestion = useActiveQuestion(gameState?.p1_question_id);
+  const shouldShowQuestion = gameState?.p1_show_question ?? true;
+  const visibleQuestion = shouldShowQuestion ? activeQuestion : null;
   const [now, setNow] = useState(Date.now());
 
   const leaderboard = useMemo(() => {
@@ -100,13 +103,13 @@ export default function PublicQuestionPage() {
               )}
             </div>
             <h2 className="text-2xl font-semibold text-white md:text-4xl">
-              {activeQuestion?.text ?? "Menunggu soal berikutnya..."}
+              {visibleQuestion?.text ?? "Menunggu soal berikutnya..."}
             </h2>
-            {activeQuestion?.image_url && (
+            {visibleQuestion?.image_url && (
               <div className="relative mt-4 aspect-video w-full overflow-hidden rounded-2xl border border-white/20">
                 <Image
-                  src={activeQuestion.image_url}
-                  alt={activeQuestion.text}
+                  src={visibleQuestion.image_url}
+                  alt={visibleQuestion.text}
                   fill
                   className="object-cover"
                 />
@@ -117,9 +120,9 @@ export default function PublicQuestionPage() {
 
         <section className="rounded-3xl border border-white/20 bg-black/30 p-6">
           <p className="text-xs uppercase tracking-[0.2em] text-slate-300">Pilihan Jawaban</p>
-          {activeQuestion?.options?.length ? (
+          {visibleQuestion?.options?.length ? (
             <div className="mt-4 grid gap-3">
-              {activeQuestion.options.map((option, index) => (
+              {visibleQuestion.options.map((option, index) => (
                 <div
                   key={option}
                   className="flex items-center gap-4 rounded-2xl border border-white/20 bg-slate-950/40 px-4 py-3 text-sm text-slate-100">
@@ -130,8 +133,14 @@ export default function PublicQuestionPage() {
                 </div>
               ))}
             </div>
+          ) : shouldShowQuestion ? (
+            <p className="mt-4 text-sm text-slate-300">
+              Soal ini tidak memiliki pilihan jawaban.
+            </p>
           ) : (
-            <p className="mt-4 text-sm text-slate-300">Opsi jawaban akan tampil saat soal aktif.</p>
+            <p className="mt-4 text-sm text-slate-300">
+              Soal akan ditampilkan setelah admin membuka soal.
+            </p>
           )}
         </section>
       </div>

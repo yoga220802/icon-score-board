@@ -10,6 +10,7 @@ const getStatusText = (gameState: ReturnType<typeof useGameState>["gameState"]) 
   if (!gameState) return "Menunggu...";
 
   if (gameState.active_phase === "PHASE_1") {
+    if (!(gameState.p1_show_question ?? true)) return "SOAL DISEMBUNYIKAN";
     if (gameState.p1_show_answer) return "JAWABAN DITAMPILKAN";
     if (gameState.p1_buzzer_open) {
       return gameState.p1_buzzer_locked_by ? "BUZZER TERKUNCI" : "REBUTAN!";

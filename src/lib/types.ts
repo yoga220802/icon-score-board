@@ -44,6 +44,7 @@ export type GamePhase = "IDLE" | "PHASE_1" | "PHASE_2" | "PHASE_3";
 export interface GameState {
   active_phase: GamePhase;
   p1_question_id: string | null;
+  p1_show_question?: boolean;
   p1_show_answer: boolean;
   p1_timer_end: Timestamp | null;
   p1_timer_remaining?: number | null;

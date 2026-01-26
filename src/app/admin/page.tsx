@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   addDoc,
   collection,
+  deleteDoc,
   doc,
   onSnapshot,
   orderBy,
@@ -53,6 +54,7 @@ export default function AdminPage() {
     text: "",
     image_url: "",
     options: ["", ""],
+    answer_key: "",
     correctOptionIndex: 0,
   });
   const [settings, setSettings] = useState({
@@ -67,6 +69,7 @@ export default function AdminPage() {
     text: string;
     image_url: string;
     options: string[];
+    answer_key: string;
     correctOptionIndex: number;
   } | null>(null);
 
@@ -152,15 +155,25 @@ export default function AdminPage() {
 
   const handleAddQuestion = async () => {
     const options = newQuestion.options.map((option) => option.trim()).filter(Boolean);
-    const answerKey = options[newQuestion.correctOptionIndex]?.trim() ?? "";
+    const safeCorrectIndex = Math.min(
+      newQuestion.correctOptionIndex,
+      Math.max(0, options.length - 1)
+    );
+    const optionAnswerKey = options[safeCorrectIndex]?.trim() ?? "";
+    const manualAnswerKey = newQuestion.answer_key.trim();
 
-    if (!newQuestion.text.trim() || !answerKey) {
-      handleStatus("Lengkapi teks soal dan pilih jawaban.", "warning");
+    if (!newQuestion.text.trim()) {
+      handleStatus("Lengkapi teks soal.", "warning");
       return;
     }
 
-    if (options.length < 2) {
+    if (options.length > 0 && options.length < 2) {
       handleStatus("Minimal 2 pilihan jawaban diperlukan.", "warning");
+      return;
+    }
+
+    if (options.length > 0 && !optionAnswerKey) {
+      handleStatus("Pilih jawaban benar untuk opsi yang tersedia.", "warning");
       return;
     }
 
@@ -170,7 +183,7 @@ export default function AdminPage() {
       text: newQuestion.text.trim(),
       image_url: newQuestion.image_url?.trim() || null,
       options,
-      answer_key: answerKey,
+      answer_key: options.length ? optionAnswerKey : manualAnswerKey,
       is_active: false,
     });
 
@@ -179,6 +192,7 @@ export default function AdminPage() {
       text: "",
       image_url: "",
       options: ["", ""],
+      answer_key: "",
       correctOptionIndex: 0,
     }));
     handleStatus("Soal baru ditambahkan.");
@@ -204,7 +218,7 @@ export default function AdminPage() {
   };
 
   const handleEditQuestion = (question: Question) => {
-    const options = question.options?.length ? question.options : ["", ""];
+    const options = question.options?.length ? question.options : [];
     const correctIndex = Math.max(
       0,
       options.findIndex((option) => option === question.answer_key)
@@ -216,6 +230,7 @@ export default function AdminPage() {
       text: question.text,
       image_url: question.image_url ?? "",
       options,
+      answer_key: question.answer_key ?? "",
       correctOptionIndex: correctIndex,
     });
   };
@@ -223,15 +238,25 @@ export default function AdminPage() {
   const handleUpdateQuestion = async () => {
     if (!editingQuestion) return;
     const options = editingQuestion.options.map((option) => option.trim()).filter(Boolean);
-    const answerKey = options[editingQuestion.correctOptionIndex]?.trim() ?? "";
+    const safeCorrectIndex = Math.min(
+      editingQuestion.correctOptionIndex,
+      Math.max(0, options.length - 1)
+    );
+    const optionAnswerKey = options[safeCorrectIndex]?.trim() ?? "";
+    const manualAnswerKey = editingQuestion.answer_key.trim();
 
-    if (!editingQuestion.text.trim() || !answerKey) {
-      handleStatus("Lengkapi teks soal dan pilih jawaban.", "warning");
+    if (!editingQuestion.text.trim()) {
+      handleStatus("Lengkapi teks soal.", "warning");
       return;
     }
 
-    if (options.length < 2) {
+    if (options.length > 0 && options.length < 2) {
       handleStatus("Minimal 2 pilihan jawaban diperlukan.", "warning");
+      return;
+    }
+
+    if (options.length > 0 && !optionAnswerKey) {
+      handleStatus("Pilih jawaban benar untuk opsi yang tersedia.", "warning");
       return;
     }
 
@@ -242,11 +267,21 @@ export default function AdminPage() {
       text: editingQuestion.text.trim(),
       image_url: editingQuestion.image_url?.trim() || null,
       options,
-      answer_key: answerKey,
+      answer_key: options.length ? optionAnswerKey : manualAnswerKey,
     });
 
     setEditingQuestion(null);
     handleStatus("Soal berhasil diperbarui.");
+  };
+
+  const handleDeleteQuestion = async (question: Question) => {
+    const confirmed = window.confirm(`Hapus soal #${question.number}?`);
+    if (!confirmed) return;
+    await deleteDoc(doc(db, "questions_phase1", question.id));
+    if (editingQuestion?.id === question.id) {
+      setEditingQuestion(null);
+    }
+    handleStatus("Soal dihapus.");
   };
 
   return (
@@ -395,6 +430,16 @@ export default function AdminPage() {
 													}}>
 													{gameState?.p1_show_answer ? "Sembunyikan" : "Tampilkan"} Jawaban
 												</button>
+												<button
+													className='rounded-full border border-slate-600 px-4 py-2 text-xs text-slate-200'
+													onClick={async () => {
+														await setGameState({
+															p1_show_question: !(gameState?.p1_show_question ?? true),
+														});
+														handleStatus("Tampilan soal diperbarui");
+													}}>
+													{gameState?.p1_show_question ?? true ? "Sembunyikan" : "Tampilkan"} Soal
+												</button>
 											</div>
 										</div>
 									</div>
@@ -419,6 +464,7 @@ export default function AdminPage() {
 															{
 																active_phase: "PHASE_1",
 																p1_question_id: question.id,
+																p1_show_question: false,
 																p1_show_answer: false,
 																p1_buzzer_open: false,
 																p1_buzzer_locked_by: null,
@@ -446,16 +492,25 @@ export default function AdminPage() {
 																: "Kemampuan Logika"}
 														</span>
 
-														<div className='flex items-center gap-2'>
-															<button
-																className='rounded-full border border-slate-600 px-2 py-1 text-[10px] uppercase text-slate-300'
-																type='button'
-																onClick={(event) => {
-																	event.stopPropagation();
-																	handleEditQuestion(question);
-																}}>
-																Edit
-															</button>
+															<div className='flex items-center gap-2'>
+																<button
+																	className='rounded-full border border-slate-600 px-2 py-1 text-[10px] uppercase text-slate-300'
+																	type='button'
+																	onClick={(event) => {
+																		event.stopPropagation();
+																		handleEditQuestion(question);
+																	}}>
+																	Edit
+																</button>
+																<button
+																	className='rounded-full border border-rose-500/50 px-2 py-1 text-[10px] uppercase text-rose-200'
+																	type='button'
+																	onClick={(event) => {
+																		event.stopPropagation();
+																		handleDeleteQuestion(question);
+																	}}>
+																	Hapus
+																</button>
 
 															{question.is_active && (
 																<span className='rounded-full bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-200'>
@@ -590,6 +645,9 @@ export default function AdminPage() {
 												</label>
 												<label className='flex flex-col gap-2'>
 													Pilihan Jawaban
+													<span className='text-[11px] text-slate-400'>
+														Kosongkan jika soal tanpa pilihan.
+													</span>
 													<div className='space-y-2'>
 														{newQuestion.options.map((option, index) => (
 															<div key={`option-${index}`} className='flex items-center gap-2'>
@@ -624,16 +682,16 @@ export default function AdminPage() {
 																<button
 																	className='rounded-full border border-rose-500/50 px-3 py-1 text-[10px] text-rose-200'
 																	type='button'
-																	disabled={newQuestion.options.length <= 2}
+																	disabled={newQuestion.options.length === 0}
 																	onClick={() =>
 																		setNewQuestion((prev) => {
-																			if (prev.options.length <= 2) return prev;
+																			if (prev.options.length === 0) return prev;
 																			const updated = prev.options.filter(
 																				(_, optIndex) => optIndex !== index
 																			);
 																			const nextCorrect = Math.min(
 																				prev.correctOptionIndex,
-																				updated.length - 1
+																				Math.max(0, updated.length - 1)
 																			);
 																			return {
 																				...prev,
@@ -659,6 +717,23 @@ export default function AdminPage() {
 														</button>
 													</div>
 												</label>
+												{newQuestion.options.length === 0 && (
+													<label className='flex flex-col gap-2'>
+														Jawaban Benar (opsional)
+														<input
+															className='rounded-lg border border-slate-700 bg-slate-900 px-2 py-1'
+															type='text'
+															placeholder='Isi jika perlu validasi otomatis'
+															value={newQuestion.answer_key}
+															onChange={(event) =>
+																setNewQuestion((prev) => ({
+																	...prev,
+																	answer_key: event.target.value,
+																}))
+															}
+														/>
+													</label>
+												)}
 												<button
 													className='rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-900'
 													onClick={handleAddQuestion}>
@@ -755,6 +830,9 @@ export default function AdminPage() {
 													</label>
 													<label className='flex flex-col gap-2'>
 														Pilihan Jawaban
+														<span className='text-[11px] text-slate-400'>
+															Kosongkan jika soal tanpa pilihan.
+														</span>
 														<div className='space-y-2'>
 															{editingQuestion.options.map((option, index) => (
 																<div
@@ -793,16 +871,16 @@ export default function AdminPage() {
 																	<button
 																		className='rounded-full border border-rose-500/50 px-3 py-1 text-[10px] text-rose-200'
 																		type='button'
-																		disabled={editingQuestion.options.length <= 2}
+																		disabled={editingQuestion.options.length === 0}
 																		onClick={() =>
 																			setEditingQuestion((prev) => {
-																				if (!prev || prev.options.length <= 2) return prev;
+																				if (!prev || prev.options.length === 0) return prev;
 																				const updated = prev.options.filter(
 																					(_, optIndex) => optIndex !== index
 																				);
 																				const nextCorrect = Math.min(
 																					prev.correctOptionIndex,
-																					updated.length - 1
+																					Math.max(0, updated.length - 1)
 																				);
 																				return {
 																					...prev,
@@ -827,6 +905,27 @@ export default function AdminPage() {
 															</button>
 														</div>
 													</label>
+													{editingQuestion.options.length === 0 && (
+														<label className='flex flex-col gap-2'>
+															Jawaban Benar (opsional)
+															<input
+																className='rounded-lg border border-slate-700 bg-slate-900 px-2 py-1'
+																type='text'
+																placeholder='Isi jika perlu validasi otomatis'
+																value={editingQuestion.answer_key}
+																onChange={(event) =>
+																	setEditingQuestion((prev) =>
+																		prev
+																			? {
+																					...prev,
+																					answer_key: event.target.value,
+																			  }
+																			: prev
+																	)
+																}
+															/>
+														</label>
+													)}
 													<div className='flex flex-wrap gap-2'>
 														<button
 															className='rounded-full bg-emerald-500 px-4 py-2 text-xs font-semibold text-slate-900'
