@@ -494,6 +494,14 @@ export default function AdminPage() {
 										<button
 											className='rounded-full border border-amber-400/60 px-4 py-2 text-xs font-semibold text-amber-200'
 											onClick={async () => {
+												await setGameState({ public_standings_phase: "PHASE_1" });
+												handleStatus("Standings Phase 1 ditampilkan");
+											}}>
+											Display Phase 1 Standings
+										</button>
+										<button
+											className='rounded-full border border-amber-400/60 px-4 py-2 text-xs font-semibold text-amber-200'
+											onClick={async () => {
 												await setGameState({ public_standings_phase: "PHASE_2" });
 												handleStatus("Standings Phase 2 ditampilkan");
 											}}>
