@@ -35,6 +35,7 @@ export default function ParticipantDisplayPage() {
 	const [rollingTitle, setRollingTitle] = useState<string | null>(null);
 	const [driveLink, setDriveLink] = useState<string>("");
 	const [driveStatus, setDriveStatus] = useState<string | null>(null);
+	const [expandedTopicId, setExpandedTopicId] = useState<string | null>(null);
 
 	// --- Logic State Benar/Salah (Dipertahankan) ---
 	// Note: Karena input dibuang, lo butuh trigger eksternal (misal: listen perubahan score)
@@ -93,8 +94,14 @@ export default function ParticipantDisplayPage() {
 			const endMs = gameState.p2_timer_end.toDate().getTime();
 			return Math.max(0, Math.ceil((endMs - now) / 1000));
 		}
+		if (
+			gameState?.p2_timer_remaining !== null &&
+			gameState?.p2_timer_remaining !== undefined
+		) {
+			return gameState.p2_timer_remaining;
+		}
 		return null;
-	}, [gameState?.p2_timer_end, now]);
+	}, [gameState?.p2_timer_end, gameState?.p2_timer_remaining, now]);
 	const aiRemaining = useMemo(() => {
 		if (!team) return null;
 		if (!team.is_ai_active || !team.ai_timer_last_started) {
@@ -250,12 +257,6 @@ export default function ParticipantDisplayPage() {
 		} catch (error) {
 			setDriveStatus((error as Error).message || "Gagal menyimpan link.");
 		}
-	};
-
-	const casePreview = (value?: string, limit = 160) => {
-		if (!value) return "-";
-		if (value.length <= limit) return value;
-		return `${value.slice(0, limit)}...`;
 	};
 
 	// --- Image Zoom Handler (Codex) ---
@@ -442,36 +443,51 @@ export default function ParticipantDisplayPage() {
 							{hasSelectedTopic ? (
 								<div className='mt-4 rounded-2xl border border-white/20 bg-slate-950/40 p-4'>
 									<p className='text-xs uppercase tracking-[0.2em] text-slate-400'>
-										Preview Studi Kasus
+										Detail Studi Kasus
 									</p>
-									<p className='mt-2 text-sm text-slate-200'>
-										{casePreview(team?.topic_phase2?.case_study)}
+									<p className='mt-2 whitespace-pre-line text-sm text-slate-200'>
+										{team?.topic_phase2?.case_study || "-"}
 									</p>
 								</div>
 							) : isPhase1Winner ? (
 								<div className='mt-4 space-y-3'>
 									{phase2Topics.length ? (
-										phase2Topics.map((topic) => (
-											<div
-												key={topic.id}
-												className='rounded-2xl border border-white/20 bg-slate-950/40 p-4'>
-												<div className='flex flex-wrap items-center justify-between gap-3'>
-													<div>
-														<p className='text-sm font-semibold text-white'>
-															{topic.title}
-														</p>
-														<p className='mt-2 text-xs text-slate-300'>
-															{casePreview(topic.case_study)}
-														</p>
+										phase2Topics.map((topic) => {
+											const isExpanded = expandedTopicId === topic.id;
+											return (
+												<div
+													key={topic.id}
+													className='rounded-2xl border border-white/20 bg-slate-950/40 p-4'>
+													<div className='flex flex-wrap items-center justify-between gap-3'>
+														<div>
+															<p className='text-sm font-semibold text-white'>
+																{topic.title}
+															</p>
+															<button
+																className='mt-2 text-xs font-semibold text-cyan-200 underline underline-offset-4'
+																type='button'
+																onClick={() =>
+																	setExpandedTopicId(isExpanded ? null : topic.id)
+																}>
+																{isExpanded
+																	? "Sembunyikan detail"
+																	: "Lihat detail topik"}
+															</button>
+														</div>
+														<button
+															className='rounded-full bg-cyan-400 px-4 py-2 text-xs font-semibold text-slate-900'
+															onClick={() => handleSelectTopic(topic.id)}>
+															Pilih Topik
+														</button>
 													</div>
-													<button
-														className='rounded-full bg-cyan-400 px-4 py-2 text-xs font-semibold text-slate-900'
-														onClick={() => handleSelectTopic(topic.id)}>
-														Pilih Topik
-													</button>
+													{isExpanded && (
+														<p className='mt-3 whitespace-pre-line text-xs text-slate-200'>
+															{topic.case_study || "-"}
+														</p>
+													)}
 												</div>
-											</div>
-										))
+											);
+										})
 									) : (
 										<p className='text-xs text-slate-400'>
 											Topik untuk prodi ini belum tersedia. Hubungi admin.

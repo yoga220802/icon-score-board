@@ -178,6 +178,17 @@ export default function AdminPage() {
     return null;
   }, [gameState?.p1_timer_end, gameState?.p1_timer_remaining, now]);
 
+  const phase2TimerRemaining = useMemo(() => {
+    if (gameState?.p2_timer_end) {
+      const endMs = gameState.p2_timer_end.toDate().getTime();
+      return Math.max(0, Math.floor((endMs - now) / 1000));
+    }
+    if (gameState?.p2_timer_remaining !== null && gameState?.p2_timer_remaining !== undefined) {
+      return gameState.p2_timer_remaining;
+    }
+    return null;
+  }, [gameState?.p2_timer_end, gameState?.p2_timer_remaining, now]);
+
   const aiTimerRemaining = (team: Team) => {
     if (!team.is_ai_active || !team.ai_timer_last_started) {
       return team.ai_timer_remaining;
@@ -186,6 +197,7 @@ export default function AdminPage() {
     const elapsed = Math.floor((now - startMs) / 1000);
     return Math.max(0, team.ai_timer_remaining - elapsed);
   };
+  const phase2DurationMs = 2 * 60 * 60 * 1000;
 
   const handleAddQuestion = async () => {
     const options = newQuestion.options.map((option) => option.trim()).filter(Boolean);
@@ -1152,19 +1164,67 @@ export default function AdminPage() {
 									<h2 className='text-lg font-semibold text-white'>
 										Phase 2 — Gacha & AI Timer
 									</h2>
+									{phase2TimerRemaining !== null && (
+										<p className='mt-2 text-sm font-semibold text-cyan-300'>
+											Sisa waktu fase 2: {formatSeconds(phase2TimerRemaining)}
+										</p>
+									)}
 									<div className='mt-4 flex flex-wrap gap-2'>
 										<button
 											className='rounded-full bg-cyan-500 px-4 py-2 text-xs font-semibold text-slate-900'
 											onClick={async () => {
-												const twoHoursMs = 2 * 60 * 60 * 1000;
 												await setGameState(
-													{ active_phase: "PHASE_2" },
+													{ active_phase: "PHASE_2", p2_timer_remaining: null },
 													undefined,
-													Date.now() + twoHoursMs
+													Date.now() + phase2DurationMs
 												);
 												handleStatus("Fase 2 dimulai (2 jam)");
 											}}>
 											Mulai Fase 2 (2 Jam)
+										</button>
+										<button
+											className='rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-200'
+											onClick={async () => {
+												const remaining =
+													phase2TimerRemaining ?? Math.floor(phase2DurationMs / 1000);
+												await setGameState(
+													{
+														p2_timer_remaining: remaining,
+													},
+													undefined,
+													null
+												);
+												handleStatus("Timer fase 2 dijeda");
+											}}>
+											Pause Timer Fase 2
+										</button>
+										<button
+											className='rounded-full border border-rose-500/60 px-4 py-2 text-xs font-semibold text-rose-200'
+											onClick={async () => {
+												await setGameState(
+													{
+														p2_timer_remaining: 0,
+													},
+													undefined,
+													null
+												);
+												handleStatus("Timer fase 2 dihentikan");
+											}}>
+											Stop Timer Fase 2
+										</button>
+										<button
+											className='rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-200'
+											onClick={async () => {
+												await setGameState(
+													{
+														p2_timer_remaining: null,
+													},
+													undefined,
+													Date.now() + phase2DurationMs
+												);
+												handleStatus("Timer fase 2 direset");
+											}}>
+											Reset Timer Fase 2
 										</button>
 										<button
 											className='rounded-full bg-purple-500 px-4 py-2 text-xs font-semibold text-white'
