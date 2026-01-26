@@ -118,6 +118,15 @@ export default function PublicQuestionPage() {
 		() => Object.fromEntries(teams.map((team) => [team.id, team])),
 		[teams]
 	);
+	const activePhase3Team = gameState?.p3_active_team_id
+		? teamsById[gameState.p3_active_team_id]
+		: null;
+	const activePhaseTitle =
+		gameState?.active_phase === "PHASE_2"
+			? "Topik Fase 2"
+			: gameState?.active_phase === "PHASE_3"
+				? "Topik Fase 3"
+				: "Soal Fase 1";
 
 	return (
 		<main
@@ -137,7 +146,7 @@ export default function PublicQuestionPage() {
 					<div className='flex flex-wrap items-center justify-between gap-4'>
 						<div className='flex flex-wrap items-center gap-3'>
 							<h1 className='text-3xl font-semibold md:text-5xl'>
-								{gameState?.active_phase === "PHASE_2" ? "Topik Fase 2" : "Soal Fase 1"}
+								{activePhaseTitle}
 							</h1>
 							<span className='rounded-full border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-xs text-cyan-200'>
 								{getStatusText(gameState)}
@@ -218,6 +227,55 @@ export default function PublicQuestionPage() {
 								))}
 							</div>
 						</div>
+					</section>
+				) : gameState?.active_phase === "PHASE_3" ? (
+					<section className='rounded-3xl border border-white/20 bg-black/30 p-8'>
+						<p className='text-xs uppercase tracking-[0.2em] text-slate-300'>
+							Topik Presentasi Aktif
+						</p>
+						{activePhase3Team ? (
+							<div className='mt-4 space-y-4'>
+								<div className='rounded-2xl border border-white/20 bg-slate-950/40 p-4'>
+									<div className='flex flex-wrap items-center justify-between gap-2'>
+										<p className='text-xs uppercase tracking-[0.2em] text-slate-400'>
+											{activePhase3Team.prodi}
+										</p>
+										<span className='rounded-full border border-cyan-300/40 bg-cyan-400/20 px-3 py-1 text-xs font-semibold text-cyan-100'>
+											{activePhase3Team.name}
+										</span>
+									</div>
+									<p className='mt-3 text-base font-semibold text-white'>
+										{activePhase3Team.topic_phase2?.title ?? "Topik belum diisi."}
+									</p>
+									<p className='mt-2 whitespace-pre-line text-xs text-slate-300'>
+										{activePhase3Team.topic_phase2?.case_study ??
+											"Studi kasus belum diisi."}
+									</p>
+								</div>
+								<div className='rounded-2xl border border-white/10 bg-slate-950/30 p-4'>
+									<p className='text-xs uppercase tracking-[0.2em] text-slate-400'>
+										Link Dokumen Hasil
+									</p>
+									{activePhase3Team.drive_link_phase2 ? (
+										<a
+											className='mt-2 block text-sm text-cyan-200 underline underline-offset-4'
+											href={activePhase3Team.drive_link_phase2}
+											target='_blank'
+											rel='noreferrer'>
+											{activePhase3Team.drive_link_phase2}
+										</a>
+									) : (
+										<p className='mt-2 text-sm text-slate-300'>
+											Dokumen belum tersedia.
+										</p>
+									)}
+								</div>
+							</div>
+						) : (
+							<p className='mt-3 text-sm text-slate-300'>
+								Belum ada prodi aktif untuk fase 3.
+							</p>
+						)}
 					</section>
 				) : (
 					<>

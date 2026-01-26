@@ -53,6 +53,7 @@ export type Phase2TopicSummary = Omit<Phase2Topic, "id"> & { id: string };
 
 export interface GameState {
   active_phase: GamePhase;
+  public_standings_phase?: GamePhase | null;
   p1_question_id: string | null;
   p1_show_question?: boolean;
   p1_show_answer: boolean;
