@@ -8,6 +8,16 @@ import { useTeams } from "@/lib/hooks/useTeams";
 import { useActiveQuestion } from "@/lib/hooks/useActiveQuestion";
 import { getTeamBranding } from "@/lib/teamBranding";
 
+const formatDuration = (seconds: number) => {
+	const safe = Math.max(0, Math.floor(seconds));
+	const hours = Math.floor(safe / 3600);
+	const minutes = Math.floor((safe % 3600) / 60);
+	const remaining = safe % 60;
+	return `${hours.toString().padStart(2, "0")}:${minutes
+		.toString()
+		.padStart(2, "0")}:${remaining.toString().padStart(2, "0")}`;
+};
+
 const getStatusText = (
 	gameState: ReturnType<typeof useGameState>["gameState"]
 ) => {
@@ -63,6 +73,22 @@ export default function PublicQuestionPage() {
 		}
 		return null;
 	}, [gameState?.p1_timer_end, now]);
+	const phase2TimerRemaining = useMemo(() => {
+		if (gameState?.p2_timer_end) {
+			const endMs = gameState.p2_timer_end.toDate().getTime();
+			return Math.max(0, Math.ceil((endMs - now) / 1000));
+		}
+		return null;
+	}, [gameState?.p2_timer_end, now]);
+	const aiTimerRemaining = (team?: (typeof teams)[number]) => {
+		if (!team) return 0;
+		if (!team.is_ai_active || !team.ai_timer_last_started) {
+			return team.ai_timer_remaining;
+		}
+		const startMs = team.ai_timer_last_started.toDate().getTime();
+		const elapsed = Math.floor((now - startMs) / 1000);
+		return Math.max(0, team.ai_timer_remaining - elapsed);
+	};
 
 	const handleOpenImage = (url: string, alt: string) => {
 		setActiveImageUrl(url);
@@ -80,6 +106,10 @@ export default function PublicQuestionPage() {
 					title: team.topic_phase2?.title ?? "",
 					caseStudy: team.topic_phase2?.case_study ?? "",
 				})),
+		[teams]
+	);
+	const teamsById = useMemo(
+		() => Object.fromEntries(teams.map((team) => [team.id, team])),
 		[teams]
 	);
 
@@ -135,15 +165,25 @@ export default function PublicQuestionPage() {
 						<p className='text-xs uppercase tracking-[0.2em] text-slate-300'>
 							Daftar Topik per Prodi
 						</p>
+						{phase2TimerRemaining !== null && (
+							<p className='mt-2 text-xs font-semibold text-cyan-200'>
+								Sisa waktu fase 2: {formatDuration(phase2TimerRemaining)}
+							</p>
+						)}
 						<div className='mt-4 grid gap-4'>
 							{phase2Topics.length ? (
 								phase2Topics.map((topic) => (
 									<div
 										key={topic.id}
 										className='rounded-2xl border border-white/20 bg-slate-950/40 p-4'>
-										<p className='text-xs uppercase tracking-[0.2em] text-slate-400'>
-											{topic.prodi}
-										</p>
+										<div className='flex flex-wrap items-center justify-between gap-2'>
+											<p className='text-xs uppercase tracking-[0.2em] text-slate-400'>
+												{topic.prodi}
+											</p>
+											<span className='text-xs font-semibold text-amber-200'>
+												Sisa AI: {formatDuration(aiTimerRemaining(teamsById[topic.id]))}
+											</span>
+										</div>
 										<p className='mt-2 text-base font-semibold text-white'>
 											{topic.title}
 										</p>
@@ -159,6 +199,23 @@ export default function PublicQuestionPage() {
 									Topik belum ditentukan oleh tim.
 								</p>
 							)}
+						</div>
+						<div className='mt-6 rounded-2xl border border-white/10 bg-slate-950/30 p-4'>
+							<p className='text-xs uppercase tracking-[0.2em] text-slate-400'>
+								Sisa Waktu AI per Tim
+							</p>
+							<div className='mt-3 grid gap-2 text-sm text-slate-200 sm:grid-cols-2'>
+								{teams.map((team) => (
+									<div
+										key={team.id}
+										className='flex items-center justify-between rounded-xl border border-white/10 bg-black/20 px-3 py-2'>
+										<span className='font-semibold'>{team.name}</span>
+										<span className='text-xs text-amber-200'>
+											{formatDuration(aiTimerRemaining(team))}
+										</span>
+									</div>
+								))}
+							</div>
 						</div>
 					</section>
 				) : (

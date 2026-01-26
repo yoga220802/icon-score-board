@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Image from "next/image";
 import { signOut } from "firebase/auth";
 import { addToast } from "@heroui/toast"; // Logic Toast dipertahankan
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { collection, onSnapshot, query } from "firebase/firestore";
 import { ParticipantRoute } from "@/components/ParticipantRoute";
 import { callParticipantApi } from "@/lib/api";
 import { useGameState } from "@/lib/hooks/useGameState";
@@ -13,6 +13,16 @@ import { useTeams } from "@/lib/hooks/useTeams";
 import { useActiveQuestion } from "@/lib/hooks/useActiveQuestion";
 import { auth, db } from "@/lib/firebase";
 import type { Phase2Topic } from "@/lib/types";
+
+const formatDuration = (seconds: number) => {
+	const safe = Math.max(0, Math.floor(seconds));
+	const hours = Math.floor(safe / 3600);
+	const minutes = Math.floor((safe % 3600) / 60);
+	const remaining = safe % 60;
+	return `${hours.toString().padStart(2, "0")}:${minutes
+		.toString()
+		.padStart(2, "0")}:${remaining.toString().padStart(2, "0")}`;
+};
 
 export default function ParticipantDisplayPage() {
 	const params = useParams<{ teamId: string }>();
@@ -40,6 +50,7 @@ export default function ParticipantDisplayPage() {
 
 	const [now, setNow] = useState(Date.now());
 	const timeoutTriggered = useRef(false);
+	const normalizeKey = (value?: string | null) => value?.trim()?.toLowerCase() ?? "";
 
 	const team = useMemo(
 		() => teams.find((item) => item.id === params.teamId),
@@ -77,6 +88,22 @@ export default function ParticipantDisplayPage() {
 		}
 		return null;
 	}, [gameState?.p1_timer_end, gameState?.p1_timer_remaining, now]);
+	const phase2TimerRemaining = useMemo(() => {
+		if (gameState?.p2_timer_end) {
+			const endMs = gameState.p2_timer_end.toDate().getTime();
+			return Math.max(0, Math.ceil((endMs - now) / 1000));
+		}
+		return null;
+	}, [gameState?.p2_timer_end, now]);
+	const aiRemaining = useMemo(() => {
+		if (!team) return null;
+		if (!team.is_ai_active || !team.ai_timer_last_started) {
+			return team.ai_timer_remaining;
+		}
+		const startMs = team.ai_timer_last_started.toDate().getTime();
+		const elapsed = Math.floor((now - startMs) / 1000);
+		return Math.max(0, team.ai_timer_remaining - elapsed);
+	}, [now, team]);
 
 	const isBuzzerOpen = Boolean(gameState?.p1_buzzer_open);
 	const isBuzzerLockedByOther = Boolean(
@@ -99,6 +126,7 @@ export default function ParticipantDisplayPage() {
 			: isBuzzerLockedByOther
 			? "bg-amber-500"
 			: "bg-slate-950";
+	const hasSelectedTopic = Boolean(team?.topic_phase2?.title?.trim());
 
 	useEffect(() => {
 		const timer = setInterval(() => setNow(Date.now()), 500);
@@ -106,15 +134,17 @@ export default function ParticipantDisplayPage() {
 	}, []);
 
 	useEffect(() => {
-		if (!team?.prodi) {
+		const normalizedProdi = normalizeKey(team?.prodi);
+		if (!normalizedProdi) {
 			setPhase2Topics([]);
 			return;
 		}
-		const q = query(collection(db, "phase2_topics"), where("prodi", "==", team.prodi));
+		const q = query(collection(db, "phase2_topics"));
 		const unsubscribe = onSnapshot(q, (snapshot) => {
-			setPhase2Topics(
-				snapshot.docs.map((doc) => ({ ...(doc.data() as Phase2Topic), id: doc.id }))
-			);
+			const topics = snapshot.docs
+				.map((doc) => ({ ...(doc.data() as Phase2Topic), id: doc.id }))
+				.filter((topic) => normalizeKey(topic.prodi) === normalizedProdi);
+			setPhase2Topics(topics);
 		});
 		return () => unsubscribe();
 	}, [team?.prodi]);
@@ -385,23 +415,37 @@ export default function ParticipantDisplayPage() {
 										Fase 2 — Topik Studi Kasus
 									</p>
 									<h2 className='mt-2 text-2xl font-semibold text-white'>
-										{team?.topic_phase2?.title ?? "Pilih topik terlebih dahulu"}
+										{hasSelectedTopic
+											? team?.topic_phase2?.title
+											: "Pilih topik terlebih dahulu"}
 									</h2>
 								</div>
-								{isPhase1Winner && (
-									<span className='rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200'>
-										Tim pemenang fase 1 (pilih topik manual)
-									</span>
-								)}
+								<div className='flex flex-wrap items-center gap-2'>
+									{isPhase1Winner && (
+										<span className='rounded-full bg-emerald-500/20 px-3 py-1 text-xs font-semibold text-emerald-200'>
+											Tim pemenang fase 1 (pilih topik manual)
+										</span>
+									)}
+									{phase2TimerRemaining !== null && (
+										<span className='rounded-full bg-cyan-500/20 px-3 py-1 text-xs font-semibold text-cyan-200'>
+											Sisa fase 2: {formatDuration(phase2TimerRemaining)}
+										</span>
+									)}
+									{aiRemaining !== null && (
+										<span className='rounded-full bg-amber-500/20 px-3 py-1 text-xs font-semibold text-amber-200'>
+											Sisa AI: {formatDuration(aiRemaining)}
+										</span>
+									)}
+								</div>
 							</div>
 
-							{team?.topic_phase2 ? (
+							{hasSelectedTopic ? (
 								<div className='mt-4 rounded-2xl border border-white/20 bg-slate-950/40 p-4'>
 									<p className='text-xs uppercase tracking-[0.2em] text-slate-400'>
 										Preview Studi Kasus
 									</p>
 									<p className='mt-2 text-sm text-slate-200'>
-										{casePreview(team.topic_phase2.case_study)}
+										{casePreview(team?.topic_phase2?.case_study)}
 									</p>
 								</div>
 							) : isPhase1Winner ? (

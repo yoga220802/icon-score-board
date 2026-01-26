@@ -159,8 +159,12 @@ export default function AdminPage() {
     });
   }, [teams]);
 
-  const setGameState = async (updates: Partial<GameState>, timerEndMs?: number | null) => {
-    await callAdminApi("/api/admin/game-state", { updates, timerEndMs });
+  const setGameState = async (
+    updates: Partial<GameState>,
+    timerEndMs?: number | null,
+    p2TimerEndMs?: number | null
+  ) => {
+    await callAdminApi("/api/admin/game-state", { updates, timerEndMs, p2TimerEndMs });
   };
 
   const timerRemaining = useMemo(() => {
@@ -1150,12 +1154,46 @@ export default function AdminPage() {
 									</h2>
 									<div className='mt-4 flex flex-wrap gap-2'>
 										<button
+											className='rounded-full bg-cyan-500 px-4 py-2 text-xs font-semibold text-slate-900'
+											onClick={async () => {
+												const twoHoursMs = 2 * 60 * 60 * 1000;
+												await setGameState(
+													{ active_phase: "PHASE_2" },
+													undefined,
+													Date.now() + twoHoursMs
+												);
+												handleStatus("Fase 2 dimulai (2 jam)");
+											}}>
+											Mulai Fase 2 (2 Jam)
+										</button>
+										<button
 											className='rounded-full bg-purple-500 px-4 py-2 text-xs font-semibold text-white'
 											onClick={async () => {
 												await callAdminApi("/api/admin/gacha", { teamId: "all" });
 												handleStatus("Gacha semua tim selesai");
 											}}>
 											Gacha Semua Tim
+										</button>
+										<button
+											className='rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-200'
+											onClick={async () => {
+												await callAdminApi("/api/admin/phase2/reset-topic", {
+													teamId: "all",
+												});
+												handleStatus("Topik semua tim direset");
+											}}>
+											Reset Topik Semua
+										</button>
+										<button
+											className='rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-200'
+											onClick={async () => {
+												await callAdminApi("/api/admin/ai-timer", {
+													teamId: "all",
+													action: "reset",
+												});
+												handleStatus("Timer AI semua tim direset");
+											}}>
+											Reset Timer AI Semua
 										</button>
 									</div>
 
@@ -1182,6 +1220,16 @@ export default function AdminPage() {
 														}}>
 														Gacha
 													</button>
+													<button
+														className='rounded-full border border-slate-700 px-3 py-2 text-xs text-slate-200'
+														onClick={async () => {
+															await callAdminApi("/api/admin/phase2/reset-topic", {
+																teamId: team.id,
+															});
+															handleStatus(`Topik ${team.name} direset`);
+														}}>
+														Reset Topik
+													</button>
 													{team.is_ai_active ? (
 														<button
 															className='rounded-full bg-rose-500 px-3 py-2 text-xs font-semibold text-white'
@@ -1207,6 +1255,17 @@ export default function AdminPage() {
 															Start
 														</button>
 													)}
+													<button
+														className='rounded-full border border-slate-700 px-3 py-2 text-xs text-slate-200'
+														onClick={async () => {
+															await callAdminApi("/api/admin/ai-timer", {
+																teamId: team.id,
+																action: "reset",
+															});
+															handleStatus(`Timer ${team.name} direset`);
+														}}>
+														Reset Timer
+													</button>
 												</div>
 											</div>
 										))}

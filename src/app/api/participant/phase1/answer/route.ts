@@ -44,8 +44,8 @@ export async function POST(request: Request) {
       }
 
       const question = questionSnap.data() as Question;
-      const isCorrect =
-        question.answer_key?.trim().toLowerCase() === trimmedAnswer.toLowerCase();
+      const normalizedAnswerKey = question.answer_key?.trim()?.toLowerCase() ?? "";
+      const isCorrect = normalizedAnswerKey === trimmedAnswer.toLowerCase();
 
       const teamRef = adminDb.collection("teams").doc(teamId);
       const teamSnap = await transaction.get(teamRef);

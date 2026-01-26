@@ -6,10 +6,34 @@ import { requireAdmin } from "@/lib/serverAuth";
 export async function POST(request: Request) {
   try {
     await requireAdmin();
-    const { teamId, action } = (await request.json()) as {
-      teamId: string;
-      action: "start" | "stop";
+    const { teamId, action, durationSeconds } = (await request.json()) as {
+      teamId: string | "all";
+      action: "start" | "stop" | "reset";
+      durationSeconds?: number;
     };
+    const defaultDuration = 1800;
+
+    if (teamId === "all") {
+      const teams = await adminDb.collection("teams").get();
+      const batch = adminDb.batch();
+      const nextRemaining =
+        typeof durationSeconds === "number" && durationSeconds >= 0
+          ? durationSeconds
+          : defaultDuration;
+      teams.docs.forEach((doc) => {
+        if (action === "reset") {
+          batch.update(doc.ref, {
+            is_ai_active: false,
+            ai_timer_remaining: nextRemaining,
+            ai_timer_last_started: null,
+          });
+        }
+      });
+      if (action === "reset") {
+        await batch.commit();
+      }
+      return NextResponse.json({ ok: true });
+    }
 
     await adminDb.runTransaction(async (transaction) => {
       const teamRef = adminDb.collection("teams").doc(teamId);
@@ -33,6 +57,18 @@ export async function POST(request: Request) {
         const now = Timestamp.now();
         const elapsed = lastStarted ? now.seconds - lastStarted.seconds : 0;
         const nextRemaining = Math.max(0, remaining - elapsed);
+        transaction.update(teamRef, {
+          is_ai_active: false,
+          ai_timer_remaining: nextRemaining,
+          ai_timer_last_started: null,
+        });
+      }
+
+      if (action === "reset") {
+        const nextRemaining =
+          typeof durationSeconds === "number" && durationSeconds >= 0
+            ? durationSeconds
+            : defaultDuration;
         transaction.update(teamRef, {
           is_ai_active: false,
           ai_timer_remaining: nextRemaining,
