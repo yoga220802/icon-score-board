@@ -1157,6 +1157,27 @@ export default function AdminPage() {
 											}}>
 											Gacha Semua Tim
 										</button>
+										<button
+											className='rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-200'
+											onClick={async () => {
+												await callAdminApi("/api/admin/phase2/reset-topic", {
+													teamId: "all",
+												});
+												handleStatus("Topik semua tim direset");
+											}}>
+											Reset Topik Semua
+										</button>
+										<button
+											className='rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-200'
+											onClick={async () => {
+												await callAdminApi("/api/admin/ai-timer", {
+													teamId: "all",
+													action: "reset",
+												});
+												handleStatus("Timer AI semua tim direset");
+											}}>
+											Reset Timer AI Semua
+										</button>
 									</div>
 
 									<div className='mt-4 grid gap-3'>
@@ -1181,6 +1202,16 @@ export default function AdminPage() {
 															handleStatus(`Gacha topik ${team.name}`);
 														}}>
 														Gacha
+													</button>
+													<button
+														className='rounded-full border border-slate-700 px-3 py-2 text-xs text-slate-200'
+														onClick={async () => {
+															await callAdminApi("/api/admin/phase2/reset-topic", {
+																teamId: team.id,
+															});
+															handleStatus(`Topik ${team.name} direset`);
+														}}>
+														Reset Topik
 													</button>
 													{team.is_ai_active ? (
 														<button
@@ -1207,6 +1238,17 @@ export default function AdminPage() {
 															Start
 														</button>
 													)}
+													<button
+														className='rounded-full border border-slate-700 px-3 py-2 text-xs text-slate-200'
+														onClick={async () => {
+															await callAdminApi("/api/admin/ai-timer", {
+																teamId: team.id,
+																action: "reset",
+															});
+															handleStatus(`Timer ${team.name} direset`);
+														}}>
+														Reset Timer
+													</button>
 												</div>
 											</div>
 										))}
