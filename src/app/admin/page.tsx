@@ -50,6 +50,7 @@ export default function AdminPage() {
   const [now, setNow] = useState(Date.now());
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isTopicModalOpen, setIsTopicModalOpen] = useState(false);
+  const [phase2ProdiFilter, setPhase2ProdiFilter] = useState("ALL");
   const [topicForm, setTopicForm] = useState({
     id: "",
     prodi: "",
@@ -334,16 +335,10 @@ export default function AdminPage() {
     () => Array.from(new Set(teams.map((team) => team.prodi).filter(Boolean))),
     [teams]
   );
-  const phase2TopicsByProdi = useMemo(() => {
-    return phase2Topics.reduce<Record<string, Phase2Topic[]>>((acc, topic) => {
-      const key = topic.prodi || "Lainnya";
-      if (!acc[key]) {
-        acc[key] = [];
-      }
-      acc[key].push(topic);
-      return acc;
-    }, {});
-  }, [phase2Topics]);
+  const filteredPhase2Topics = useMemo(() => {
+    if (phase2ProdiFilter === "ALL") return phase2Topics;
+    return phase2Topics.filter((topic) => topic.prodi === phase2ProdiFilter);
+  }, [phase2ProdiFilter, phase2Topics]);
 
   const resetTopicForm = () => {
     setTopicForm({ id: "", prodi: "", title: "", case_study: "" });
@@ -1358,58 +1353,68 @@ export default function AdminPage() {
 											Tambah Topik
 										</button>
 									</div>
-									<div className='mt-4 grid gap-6'>
+									<div className='mt-4 flex flex-wrap items-center gap-3'>
+										<label className='text-xs uppercase tracking-[0.25em] text-slate-400'>
+											Filter Prodi
+										</label>
+										<select
+											className='rounded-full border border-slate-700 bg-slate-950 px-4 py-2 text-xs text-slate-200'
+											value={phase2ProdiFilter}
+											onChange={(event) => setPhase2ProdiFilter(event.target.value)}>
+											<option value='ALL'>Semua Prodi</option>
+											{[...prodiOptions].sort().map((prodi) => (
+												<option key={prodi} value={prodi}>
+													{prodi}
+												</option>
+											))}
+										</select>
+										<span className='text-xs text-slate-400'>
+											{filteredPhase2Topics.length} topik ditampilkan
+										</span>
+									</div>
+									<div className='mt-4 grid gap-4'>
 										{phase2Topics.length === 0 ? (
 											<p className='text-xs text-slate-400'>
 												Belum ada topik. Tambahkan topik untuk setiap prodi.
 											</p>
+										) : filteredPhase2Topics.length === 0 ? (
+											<p className='text-xs text-slate-400'>
+												Tidak ada topik untuk filter ini.
+											</p>
 										) : (
-											Object.entries(phase2TopicsByProdi)
-												.sort(([a], [b]) => a.localeCompare(b))
-												.map(([prodi, topics]) => (
-													<div key={prodi} className='space-y-3'>
-														<div className='flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-3'>
-															<p className='text-xs font-semibold uppercase tracking-[0.3em] text-cyan-200'>
-																{prodi}
+											filteredPhase2Topics.map((topic) => (
+												<div
+													key={topic.id}
+													className='rounded-2xl border border-slate-800 bg-slate-950/60 p-4'>
+													<div className='flex flex-wrap items-center justify-between gap-3'>
+														<div>
+															<p className='text-xs uppercase tracking-[0.25em] text-slate-400'>
+																{topic.prodi}
 															</p>
-															<span className='text-[10px] uppercase tracking-[0.3em] text-slate-400'>
-																{topics.length} topik
-															</span>
+															<p className='mt-2 text-sm font-semibold text-white'>
+																{topic.title}
+															</p>
 														</div>
-														<div className='grid gap-4'>
-															{topics.map((topic) => (
-																<div
-																	key={topic.id}
-																	className='rounded-2xl border border-slate-800 bg-slate-950/60 p-4'>
-																	<div className='flex flex-wrap items-center justify-between gap-3'>
-																		<div>
-																			<p className='text-sm font-semibold text-white'>
-																				{topic.title}
-																			</p>
-																		</div>
-																		<div className='flex items-center gap-2'>
-																			<button
-																				className='rounded-full border border-slate-600 px-3 py-1 text-[10px] uppercase text-slate-300'
-																				type='button'
-																				onClick={() => openTopicModal(topic)}>
-																				Edit
-																			</button>
-																			<button
-																				className='rounded-full border border-rose-500/50 px-3 py-1 text-[10px] uppercase text-rose-200'
-																				type='button'
-																				onClick={() => handleDeleteTopic(topic)}>
-																				Hapus
-																			</button>
-																		</div>
-																	</div>
-																	<p className='mt-3 text-xs text-slate-300 line-clamp-3'>
-																		{topic.case_study}
-																	</p>
-																</div>
-															))}
+														<div className='flex items-center gap-2'>
+															<button
+																className='rounded-full border border-slate-600 px-3 py-1 text-[10px] uppercase text-slate-300'
+																type='button'
+																onClick={() => openTopicModal(topic)}>
+																Edit
+															</button>
+															<button
+																className='rounded-full border border-rose-500/50 px-3 py-1 text-[10px] uppercase text-rose-200'
+																type='button'
+																onClick={() => handleDeleteTopic(topic)}>
+																Hapus
+															</button>
 														</div>
 													</div>
-												))
+													<p className='mt-3 text-xs text-slate-300 line-clamp-3'>
+														{topic.case_study}
+													</p>
+												</div>
+											))
 										)}
 									</div>
 								</div>
