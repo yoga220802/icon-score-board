@@ -27,9 +27,17 @@ export default function PublicDisplayPage() {
   const { gameState } = useGameState();
   const { teams } = useTeams("name");
 
+  const standingsPhase = gameState?.public_standings_phase ?? "PHASE_1";
+  const scoreKey: "score_phase1" | "total_score_phase2" | "total_score_phase3" =
+    standingsPhase === "PHASE_2"
+      ? "total_score_phase2"
+      : standingsPhase === "PHASE_3"
+        ? "total_score_phase3"
+        : "score_phase1";
+
   const leaderboard = useMemo(() => {
-    return [...teams].sort((a, b) => (b.score_phase1 ?? 0) - (a.score_phase1 ?? 0));
-  }, [teams]);
+    return [...teams].sort((a, b) => (b[scoreKey] ?? 0) - (a[scoreKey] ?? 0));
+  }, [scoreKey, teams]);
 
   const topTeams = leaderboard.slice(0, 5);
   const podiumOrder = [3, 1, 0, 2, 4];
@@ -39,14 +47,10 @@ export default function PublicDisplayPage() {
   const answeringBranding = answeringTeam ? getTeamBranding(answeringTeam) : null;
   const maxScore = Math.max(
     0,
-    ...topTeams.map((team) =>
-      team.score_phase1
-    )
+    ...topTeams.map((team) => team[scoreKey])
   );
   const minScore = Math.min(
-    ...topTeams.map((team) =>
-      team.score_phase1
-    ),
+    ...topTeams.map((team) => team[scoreKey]),
     0
   );
   const scoreRange = maxScore - minScore;
@@ -67,6 +71,9 @@ export default function PublicDisplayPage() {
           <div className="flex flex-wrap items-center justify-between gap-4">
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-3xl font-semibold md:text-5xl">Leaderboard ICON</h1>
+              <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-slate-200">
+                Standings {standingsPhase.replace("_", " ")}
+              </span>
               <span className="rounded-full border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-xs text-cyan-200">
                 {getStatusText(gameState)}
               </span>
@@ -102,7 +109,7 @@ export default function PublicDisplayPage() {
               {podiumOrder.map((leaderboardIndex) => {
               const team = topTeams[leaderboardIndex];
               const score = team
-                ? team.score_phase1
+                ? team[scoreKey]
                 : 0;
               const barHeight = maxScore ? Math.max(24, (score / maxScore) * 100) : 24;
               const branding = team ? getTeamBranding(team) : null;

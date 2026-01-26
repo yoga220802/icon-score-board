@@ -490,6 +490,24 @@ export default function AdminPage() {
 											Reset Skor Phase 1
 										</button>
 									</div>
+									<div className='mt-4 flex flex-wrap gap-2'>
+										<button
+											className='rounded-full border border-amber-400/60 px-4 py-2 text-xs font-semibold text-amber-200'
+											onClick={async () => {
+												await setGameState({ public_standings_phase: "PHASE_2" });
+												handleStatus("Standings Phase 2 ditampilkan");
+											}}>
+											Display Phase 2 Standings
+										</button>
+										<button
+											className='rounded-full border border-amber-400/60 px-4 py-2 text-xs font-semibold text-amber-200'
+											onClick={async () => {
+												await setGameState({ public_standings_phase: "PHASE_3" });
+												handleStatus("Standings Phase 3 ditampilkan");
+											}}>
+											Display Phase 3 Standings
+										</button>
+									</div>
 								</div>
 								<div className='rounded-3xl border border-slate-800 bg-slate-900/60 p-6'>
 									<h2 className='text-lg font-semibold text-white'>
@@ -1186,6 +1204,14 @@ export default function AdminPage() {
 												handleStatus("Fase 2 dimulai (2 jam)");
 											}}>
 											Mulai Fase 2 (2 Jam)
+										</button>
+										<button
+											className='rounded-full border border-cyan-400/60 px-4 py-2 text-xs font-semibold text-cyan-200'
+											onClick={async () => {
+												await setGameState({ active_phase: "PHASE_3" });
+												handleStatus("Fase 3 dimulai");
+											}}>
+											Mulai Fase 3
 										</button>
 										<button
 											className='rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-200'
