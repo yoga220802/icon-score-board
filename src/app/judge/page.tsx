@@ -45,6 +45,10 @@ export default function JudgePage() {
   const [scores, setScores] = useState<Record<string, number>>({});
   const [submitting, setSubmitting] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const selectedTeam = useMemo(
+    () => teams.find((team) => team.id === teamId) ?? null,
+    [teamId, teams]
+  );
 
   const notify = (message: string, color: "success" | "warning" | "danger" | "default" = "success") => {
     addToast({
@@ -165,6 +169,25 @@ export default function JudgePage() {
                   <option value="PHASE_3">Phase 3 — Defense</option>
                 </select>
               </label>
+            </div>
+
+            <div className="mt-5 rounded-2xl border border-slate-800 bg-slate-950/60 px-4 py-3">
+              <p className="text-xs uppercase tracking-[0.2em] text-slate-400">
+                Link Dokumen Peserta
+              </p>
+              {selectedTeam?.drive_link_phase2 ? (
+                <a
+                  className="mt-2 block text-sm text-cyan-300 underline-offset-4 hover:underline"
+                  href={selectedTeam.drive_link_phase2}
+                  target="_blank"
+                  rel="noreferrer">
+                  {selectedTeam.drive_link_phase2}
+                </a>
+              ) : (
+                <p className="mt-2 text-xs text-slate-400">
+                  Belum ada link drive yang disubmit untuk tim ini.
+                </p>
+              )}
             </div>
 
             <div className="mt-6 grid gap-4">
