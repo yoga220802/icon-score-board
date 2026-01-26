@@ -334,6 +334,16 @@ export default function AdminPage() {
     () => Array.from(new Set(teams.map((team) => team.prodi).filter(Boolean))),
     [teams]
   );
+  const phase2TopicsByProdi = useMemo(() => {
+    return phase2Topics.reduce<Record<string, Phase2Topic[]>>((acc, topic) => {
+      const key = topic.prodi || "Lainnya";
+      if (!acc[key]) {
+        acc[key] = [];
+      }
+      acc[key].push(topic);
+      return acc;
+    }, {});
+  }, [phase2Topics]);
 
   const resetTopicForm = () => {
     setTopicForm({ id: "", prodi: "", title: "", case_study: "" });
@@ -1348,45 +1358,58 @@ export default function AdminPage() {
 											Tambah Topik
 										</button>
 									</div>
-									<div className='mt-4 grid gap-4'>
+									<div className='mt-4 grid gap-6'>
 										{phase2Topics.length === 0 ? (
 											<p className='text-xs text-slate-400'>
 												Belum ada topik. Tambahkan topik untuk setiap prodi.
 											</p>
 										) : (
-											phase2Topics.map((topic) => (
-												<div
-													key={topic.id}
-													className='rounded-2xl border border-slate-800 bg-slate-950/60 p-4'>
-													<div className='flex flex-wrap items-center justify-between gap-3'>
-														<div>
-															<p className='text-xs uppercase tracking-[0.25em] text-slate-400'>
-																{topic.prodi}
+											Object.entries(phase2TopicsByProdi)
+												.sort(([a], [b]) => a.localeCompare(b))
+												.map(([prodi, topics]) => (
+													<div key={prodi} className='space-y-3'>
+														<div className='flex items-center justify-between rounded-2xl border border-slate-800 bg-slate-950/80 px-4 py-3'>
+															<p className='text-xs font-semibold uppercase tracking-[0.3em] text-cyan-200'>
+																{prodi}
 															</p>
-															<p className='mt-2 text-sm font-semibold text-white'>
-																{topic.title}
-															</p>
+															<span className='text-[10px] uppercase tracking-[0.3em] text-slate-400'>
+																{topics.length} topik
+															</span>
 														</div>
-														<div className='flex items-center gap-2'>
-															<button
-																className='rounded-full border border-slate-600 px-3 py-1 text-[10px] uppercase text-slate-300'
-																type='button'
-																onClick={() => openTopicModal(topic)}>
-																Edit
-															</button>
-															<button
-																className='rounded-full border border-rose-500/50 px-3 py-1 text-[10px] uppercase text-rose-200'
-																type='button'
-																onClick={() => handleDeleteTopic(topic)}>
-																Hapus
-															</button>
+														<div className='grid gap-4'>
+															{topics.map((topic) => (
+																<div
+																	key={topic.id}
+																	className='rounded-2xl border border-slate-800 bg-slate-950/60 p-4'>
+																	<div className='flex flex-wrap items-center justify-between gap-3'>
+																		<div>
+																			<p className='text-sm font-semibold text-white'>
+																				{topic.title}
+																			</p>
+																		</div>
+																		<div className='flex items-center gap-2'>
+																			<button
+																				className='rounded-full border border-slate-600 px-3 py-1 text-[10px] uppercase text-slate-300'
+																				type='button'
+																				onClick={() => openTopicModal(topic)}>
+																				Edit
+																			</button>
+																			<button
+																				className='rounded-full border border-rose-500/50 px-3 py-1 text-[10px] uppercase text-rose-200'
+																				type='button'
+																				onClick={() => handleDeleteTopic(topic)}>
+																				Hapus
+																			</button>
+																		</div>
+																	</div>
+																	<p className='mt-3 text-xs text-slate-300 line-clamp-3'>
+																		{topic.case_study}
+																	</p>
+																</div>
+															))}
 														</div>
 													</div>
-													<p className='mt-3 text-xs text-slate-300 line-clamp-3'>
-														{topic.case_study}
-													</p>
-												</div>
-											))
+												))
 										)}
 									</div>
 								</div>
