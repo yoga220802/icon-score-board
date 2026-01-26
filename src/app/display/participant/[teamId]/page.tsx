@@ -5,7 +5,7 @@ import { useParams } from "next/navigation";
 import Image from "next/image";
 import { signOut } from "firebase/auth";
 import { addToast } from "@heroui/toast"; // Logic Toast dipertahankan
-import { collection, onSnapshot, query, where } from "firebase/firestore";
+import { collection, onSnapshot, query } from "firebase/firestore";
 import { ParticipantRoute } from "@/components/ParticipantRoute";
 import { callParticipantApi } from "@/lib/api";
 import { useGameState } from "@/lib/hooks/useGameState";
@@ -40,6 +40,7 @@ export default function ParticipantDisplayPage() {
 
 	const [now, setNow] = useState(Date.now());
 	const timeoutTriggered = useRef(false);
+	const normalizeKey = (value?: string | null) => value?.trim()?.toLowerCase() ?? "";
 
 	const team = useMemo(
 		() => teams.find((item) => item.id === params.teamId),
@@ -106,15 +107,17 @@ export default function ParticipantDisplayPage() {
 	}, []);
 
 	useEffect(() => {
-		if (!team?.prodi) {
+		const normalizedProdi = normalizeKey(team?.prodi);
+		if (!normalizedProdi) {
 			setPhase2Topics([]);
 			return;
 		}
-		const q = query(collection(db, "phase2_topics"), where("prodi", "==", team.prodi));
+		const q = query(collection(db, "phase2_topics"));
 		const unsubscribe = onSnapshot(q, (snapshot) => {
-			setPhase2Topics(
-				snapshot.docs.map((doc) => ({ ...(doc.data() as Phase2Topic), id: doc.id }))
-			);
+			const topics = snapshot.docs
+				.map((doc) => ({ ...(doc.data() as Phase2Topic), id: doc.id }))
+				.filter((topic) => normalizeKey(topic.prodi) === normalizedProdi);
+			setPhase2Topics(topics);
 		});
 		return () => unsubscribe();
 	}, [team?.prodi]);
