@@ -78,8 +78,14 @@ export default function PublicQuestionPage() {
 			const endMs = gameState.p2_timer_end.toDate().getTime();
 			return Math.max(0, Math.ceil((endMs - now) / 1000));
 		}
+		if (
+			gameState?.p2_timer_remaining !== null &&
+			gameState?.p2_timer_remaining !== undefined
+		) {
+			return gameState.p2_timer_remaining;
+		}
 		return null;
-	}, [gameState?.p2_timer_end, now]);
+	}, [gameState?.p2_timer_end, gameState?.p2_timer_remaining, now]);
 	const aiTimerRemaining = (team?: (typeof teams)[number]) => {
 		if (!team) return 0;
 		if (!team.is_ai_active || !team.ai_timer_last_started) {
@@ -112,9 +118,6 @@ export default function PublicQuestionPage() {
 		() => Object.fromEntries(teams.map((team) => [team.id, team])),
 		[teams]
 	);
-
-	const previewCase = (value: string, limit = 140) =>
-		value.length > limit ? `${value.slice(0, limit)}...` : value;
 
 	return (
 		<main
@@ -187,10 +190,8 @@ export default function PublicQuestionPage() {
 										<p className='mt-2 text-base font-semibold text-white'>
 											{topic.title}
 										</p>
-										<p className='mt-2 text-xs text-slate-300'>
-											{topic.caseStudy
-												? previewCase(topic.caseStudy)
-												: "Studi kasus belum diisi."}
+										<p className='mt-2 whitespace-pre-line text-xs text-slate-300'>
+											{topic.caseStudy || "Studi kasus belum diisi."}
 										</p>
 									</div>
 								))

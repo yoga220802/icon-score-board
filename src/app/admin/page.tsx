@@ -50,6 +50,7 @@ export default function AdminPage() {
   const [now, setNow] = useState(Date.now());
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [isTopicModalOpen, setIsTopicModalOpen] = useState(false);
+  const [phase2ProdiFilter, setPhase2ProdiFilter] = useState("ALL");
   const [topicForm, setTopicForm] = useState({
     id: "",
     prodi: "",
@@ -178,6 +179,17 @@ export default function AdminPage() {
     return null;
   }, [gameState?.p1_timer_end, gameState?.p1_timer_remaining, now]);
 
+  const phase2TimerRemaining = useMemo(() => {
+    if (gameState?.p2_timer_end) {
+      const endMs = gameState.p2_timer_end.toDate().getTime();
+      return Math.max(0, Math.floor((endMs - now) / 1000));
+    }
+    if (gameState?.p2_timer_remaining !== null && gameState?.p2_timer_remaining !== undefined) {
+      return gameState.p2_timer_remaining;
+    }
+    return null;
+  }, [gameState?.p2_timer_end, gameState?.p2_timer_remaining, now]);
+
   const aiTimerRemaining = (team: Team) => {
     if (!team.is_ai_active || !team.ai_timer_last_started) {
       return team.ai_timer_remaining;
@@ -186,6 +198,7 @@ export default function AdminPage() {
     const elapsed = Math.floor((now - startMs) / 1000);
     return Math.max(0, team.ai_timer_remaining - elapsed);
   };
+  const phase2DurationMs = 2 * 60 * 60 * 1000;
 
   const handleAddQuestion = async () => {
     const options = newQuestion.options.map((option) => option.trim()).filter(Boolean);
@@ -322,6 +335,10 @@ export default function AdminPage() {
     () => Array.from(new Set(teams.map((team) => team.prodi).filter(Boolean))),
     [teams]
   );
+  const filteredPhase2Topics = useMemo(() => {
+    if (phase2ProdiFilter === "ALL") return phase2Topics;
+    return phase2Topics.filter((topic) => topic.prodi === phase2ProdiFilter);
+  }, [phase2ProdiFilter, phase2Topics]);
 
   const resetTopicForm = () => {
     setTopicForm({ id: "", prodi: "", title: "", case_study: "" });
@@ -1152,19 +1169,67 @@ export default function AdminPage() {
 									<h2 className='text-lg font-semibold text-white'>
 										Phase 2 — Gacha & AI Timer
 									</h2>
+									{phase2TimerRemaining !== null && (
+										<p className='mt-2 text-sm font-semibold text-cyan-300'>
+											Sisa waktu fase 2: {formatSeconds(phase2TimerRemaining)}
+										</p>
+									)}
 									<div className='mt-4 flex flex-wrap gap-2'>
 										<button
 											className='rounded-full bg-cyan-500 px-4 py-2 text-xs font-semibold text-slate-900'
 											onClick={async () => {
-												const twoHoursMs = 2 * 60 * 60 * 1000;
 												await setGameState(
-													{ active_phase: "PHASE_2" },
+													{ active_phase: "PHASE_2", p2_timer_remaining: null },
 													undefined,
-													Date.now() + twoHoursMs
+													Date.now() + phase2DurationMs
 												);
 												handleStatus("Fase 2 dimulai (2 jam)");
 											}}>
 											Mulai Fase 2 (2 Jam)
+										</button>
+										<button
+											className='rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-200'
+											onClick={async () => {
+												const remaining =
+													phase2TimerRemaining ?? Math.floor(phase2DurationMs / 1000);
+												await setGameState(
+													{
+														p2_timer_remaining: remaining,
+													},
+													undefined,
+													null
+												);
+												handleStatus("Timer fase 2 dijeda");
+											}}>
+											Pause Timer Fase 2
+										</button>
+										<button
+											className='rounded-full border border-rose-500/60 px-4 py-2 text-xs font-semibold text-rose-200'
+											onClick={async () => {
+												await setGameState(
+													{
+														p2_timer_remaining: 0,
+													},
+													undefined,
+													null
+												);
+												handleStatus("Timer fase 2 dihentikan");
+											}}>
+											Stop Timer Fase 2
+										</button>
+										<button
+											className='rounded-full border border-slate-600 px-4 py-2 text-xs font-semibold text-slate-200'
+											onClick={async () => {
+												await setGameState(
+													{
+														p2_timer_remaining: null,
+													},
+													undefined,
+													Date.now() + phase2DurationMs
+												);
+												handleStatus("Timer fase 2 direset");
+											}}>
+											Reset Timer Fase 2
 										</button>
 										<button
 											className='rounded-full bg-purple-500 px-4 py-2 text-xs font-semibold text-white'
@@ -1288,13 +1353,36 @@ export default function AdminPage() {
 											Tambah Topik
 										</button>
 									</div>
+									<div className='mt-4 flex flex-wrap items-center gap-3'>
+										<label className='text-xs uppercase tracking-[0.25em] text-slate-400'>
+											Filter Prodi
+										</label>
+										<select
+											className='rounded-full border border-slate-700 bg-slate-950 px-4 py-2 text-xs text-slate-200'
+											value={phase2ProdiFilter}
+											onChange={(event) => setPhase2ProdiFilter(event.target.value)}>
+											<option value='ALL'>Semua Prodi</option>
+											{[...prodiOptions].sort().map((prodi) => (
+												<option key={prodi} value={prodi}>
+													{prodi}
+												</option>
+											))}
+										</select>
+										<span className='text-xs text-slate-400'>
+											{filteredPhase2Topics.length} topik ditampilkan
+										</span>
+									</div>
 									<div className='mt-4 grid gap-4'>
 										{phase2Topics.length === 0 ? (
 											<p className='text-xs text-slate-400'>
 												Belum ada topik. Tambahkan topik untuk setiap prodi.
 											</p>
+										) : filteredPhase2Topics.length === 0 ? (
+											<p className='text-xs text-slate-400'>
+												Tidak ada topik untuk filter ini.
+											</p>
 										) : (
-											phase2Topics.map((topic) => (
+											filteredPhase2Topics.map((topic) => (
 												<div
 													key={topic.id}
 													className='rounded-2xl border border-slate-800 bg-slate-950/60 p-4'>

@@ -62,6 +62,7 @@ export interface GameState {
   p1_answer_duration?: number | null;
   p1_answer_deadline?: Timestamp | null;
   p2_timer_end?: Timestamp | null;
+  p2_timer_remaining?: number | null;
   p1_buzzer_open: boolean;
   p1_buzzer_locked_by: string | null;
   p1_pot_score: number;
