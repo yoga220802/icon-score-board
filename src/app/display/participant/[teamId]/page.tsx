@@ -100,6 +100,7 @@ export default function ParticipantDisplayPage() {
 			: isBuzzerLockedByOther
 			? "bg-amber-500"
 			: "bg-slate-950";
+	const hasSelectedTopic = Boolean(team?.topic_phase2?.title?.trim());
 
 	useEffect(() => {
 		const timer = setInterval(() => setNow(Date.now()), 500);
@@ -388,7 +389,9 @@ export default function ParticipantDisplayPage() {
 										Fase 2 — Topik Studi Kasus
 									</p>
 									<h2 className='mt-2 text-2xl font-semibold text-white'>
-										{team?.topic_phase2?.title ?? "Pilih topik terlebih dahulu"}
+										{hasSelectedTopic
+											? team?.topic_phase2?.title
+											: "Pilih topik terlebih dahulu"}
 									</h2>
 								</div>
 								{isPhase1Winner && (
@@ -398,13 +401,13 @@ export default function ParticipantDisplayPage() {
 								)}
 							</div>
 
-							{team?.topic_phase2 ? (
+							{hasSelectedTopic ? (
 								<div className='mt-4 rounded-2xl border border-white/20 bg-slate-950/40 p-4'>
 									<p className='text-xs uppercase tracking-[0.2em] text-slate-400'>
 										Preview Studi Kasus
 									</p>
 									<p className='mt-2 text-sm text-slate-200'>
-										{casePreview(team.topic_phase2.case_study)}
+										{casePreview(team?.topic_phase2?.case_study)}
 									</p>
 								</div>
 							) : isPhase1Winner ? (
