@@ -28,12 +28,15 @@ export default function PublicDisplayPage() {
   const { teams } = useTeams("name");
 
   const standingsPhase = gameState?.public_standings_phase ?? "PHASE_1";
-  const scoreKey: "score_phase1" | "total_score_phase2" | "total_score_phase3" =
+  const scoreKey: "score_phase1" | "total_score_phase2" | "total_score_phase3" | "final_score" =
     standingsPhase === "PHASE_2"
       ? "total_score_phase2"
       : standingsPhase === "PHASE_3"
         ? "total_score_phase3"
-        : "score_phase1";
+        : standingsPhase === "FINAL"
+          ? "final_score"
+          : "score_phase1";
+  const standingsLabel = standingsPhase === "FINAL" ? "FINAL" : standingsPhase.replace("_", " ");
 
   const leaderboard = useMemo(() => {
     return [...teams].sort((a, b) => (b[scoreKey] ?? 0) - (a[scoreKey] ?? 0));
@@ -72,7 +75,7 @@ export default function PublicDisplayPage() {
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-3xl font-semibold md:text-5xl">Leaderboard ICON</h1>
               <span className="rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs text-slate-200">
-                Standings {standingsPhase.replace("_", " ")}
+                Standings {standingsLabel}
               </span>
               <span className="rounded-full border border-cyan-400/40 bg-cyan-500/10 px-4 py-2 text-xs text-cyan-200">
                 {getStatusText(gameState)}

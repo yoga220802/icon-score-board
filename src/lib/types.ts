@@ -41,6 +41,7 @@ export interface Question {
 }
 
 export type GamePhase = "IDLE" | "PHASE_1" | "PHASE_2" | "PHASE_3";
+export type PublicStandingsPhase = GamePhase | "FINAL";
 
 export interface Phase2Topic {
   id: string;
@@ -53,7 +54,7 @@ export type Phase2TopicSummary = Omit<Phase2Topic, "id"> & { id: string };
 
 export interface GameState {
   active_phase: GamePhase;
-  public_standings_phase?: GamePhase | null;
+  public_standings_phase?: PublicStandingsPhase | null;
   p1_question_id: string | null;
   p1_show_question?: boolean;
   p1_show_answer: boolean;

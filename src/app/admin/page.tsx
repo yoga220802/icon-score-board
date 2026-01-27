@@ -515,6 +515,14 @@ export default function AdminPage() {
 											}}>
 											Display Phase 3 Standings
 										</button>
+										<button
+											className='rounded-full border border-emerald-400/60 px-4 py-2 text-xs font-semibold text-emerald-200'
+											onClick={async () => {
+												await setGameState({ public_standings_phase: "FINAL" });
+												handleStatus("Standings Final ditampilkan");
+											}}>
+											Display Final Standings
+										</button>
 									</div>
 								</div>
 								<div className='rounded-3xl border border-slate-800 bg-slate-900/60 p-6'>
